@@ -1,22 +1,32 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { prisma } from '@/lib/prisma';
-import { useAuth } from '@clerk/nextjs';
+import { useState, useEffect } from "react";
+import { prisma } from "@/lib/prisma";
+import { useAuth } from "@clerk/nextjs";
 
-export type AdType = 'video' | 'survey' | 'display';
+export type AdType = "video" | "survey" | "display";
 
+// Metadata Interfaces
+interface BaseMetadata {
+  duration?: number;
+  url?: string;
+  format?: string;
+}
+
+interface SurveyMetadata {
+  formId?: string;
+}
+
+type AdMetadata = BaseMetadata | SurveyMetadata;
+
+// Ad Interface
 interface Ad {
   id: string;
   type: AdType;
   title: string;
   content: string;
   reward: number;
-  metadata: {
-    duration?: number;
-    url?: string;
-    format?: string;
-  };
+  metadata: AdMetadata;
 }
 
 export function useAdProvider() {
@@ -35,22 +45,28 @@ export function useAdProvider() {
             userId,
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         });
 
         if (latestInteraction) {
+          // Example: Dynamically handling metadata based on ad type
+          const adType: AdType = "survey"; // Example, this should come from your DB
+
           setCurrentAd({
             id: latestInteraction.adId,
-            type: 'video', // You might want to store this in the database
-            title: 'Ad Title', // These should come from your ad content table
-            content: 'Ad Content',
-            reward: 10,
-            metadata: {},
+            type: adType,
+            title: "Engaging Survey!",
+            content: "Participate in this quick survey and earn rewards.",
+            reward: 15,
+            metadata:
+              adType === "survey"
+                ? { formId: "survey-123" } // Survey-specific metadata
+                : { url: "https://example.com", format: "banner" }, // Default metadata
           });
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch ad');
+        setError(err instanceof Error ? err.message : "Failed to fetch ad");
       } finally {
         setIsLoading(false);
       }
@@ -59,9 +75,13 @@ export function useAdProvider() {
     fetchAd();
   }, [userId]);
 
-  const recordInteraction = async (adId: string, type: 'view' | 'click', duration?: number) => {
+  const recordInteraction = async (
+    adId: string,
+    type: "view" | "click",
+    duration?: number
+  ) => {
     try {
-      if (!userId) throw new Error('User not authenticated');
+      if (!userId) throw new Error("User not authenticated");
 
       await prisma.adInteraction.create({
         data: {
@@ -72,7 +92,7 @@ export function useAdProvider() {
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to record interaction');
+      setError(err instanceof Error ? err.message : "Failed to record interaction");
     }
   };
 
