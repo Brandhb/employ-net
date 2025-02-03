@@ -1,9 +1,14 @@
 import Mux from "@mux/mux-node";
 
-const { Video } = new Mux({
-  tokenId: process.env.MUX_TOKEN_ID,
-  tokenSecret: process.env.MUX_TOKEN_SECRET,
+// Use username and password instead of tokenId and tokenSecret
+const mux = new Mux({
+  auth: {
+    username: process.env.MUX_TOKEN_ID as string,
+    password: process.env.MUX_TOKEN_SECRET as string,
+  },
 });
+
+const { Video } = mux;
 
 export async function createMuxAsset(videoUrl: string) {
   try {
