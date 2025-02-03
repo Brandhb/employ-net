@@ -320,8 +320,7 @@ export async function getAdminNotifications() {
 
 export async function getAdminSettings() {
   const { userId } = await auth();
-
-  await requireAdminAuth(); // 👈 Replacing redundant checks
+  await requireAdminAuth();
 
   const user = await prisma.user.findUnique({
     where: { employClerkUserId: userId || "" },
@@ -335,10 +334,23 @@ export async function getAdminSettings() {
 
   return {
     ...user,
-    notificationPreferences: user?.notificationPreferences,
-    adminNotificationPreferences: user?.adminNotificationPreferences,
+    notificationPreferences: (typeof user?.notificationPreferences === "string"
+      ? JSON.parse(user.notificationPreferences)
+      : user?.notificationPreferences) || {
+        dailySummary: true,
+        urgentAlerts: true,
+      },
+
+    adminNotificationPreferences: (typeof user?.adminNotificationPreferences === "string"
+      ? JSON.parse(user.adminNotificationPreferences)
+      : user?.adminNotificationPreferences) || {
+        payoutNotifications: true,
+        verificationNotifications: true,
+        systemAlerts: true,
+      },
   };
 }
+
 
 export async function updateAdminSettings(settings: {
   notificationPreferences?: NotificationPreferences;
