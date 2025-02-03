@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Check, X, ExternalLink } from "lucide-react";
@@ -19,34 +19,25 @@ export default function AccountVerificationPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Function to check the verification status
-  const checkVerification = async () => {
+  const checkVerification = useCallback(async () => {
     setLoading(true);
-
     try {
       const data = await checkVerificationStep();
-
-      if (data && data.verified) {
+      if (data?.verified) {
         setVerified(data.verified);
         if (data.verified) {
-          // Redirect to dashboard if verification is completed
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 1500); // Redirect after 1.5 seconds
+          setTimeout(() => router.push("/dashboard"), 1500);
         }
-      } else {
-        console.error("Verification step not found in response:", data);
       }
     } catch (error) {
-      console.error("Error checking verification step:", error);
+      console.error("Error checking verification:", error);
     }
-
     setLoading(false);
-  };
-
+  }, [router]);
+  
   useEffect(() => {
     checkVerification();
-  }, []);
+  }, [checkVerification]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-r from-blue-100 to-blue-50 p-6">
