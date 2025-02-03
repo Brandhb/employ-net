@@ -92,7 +92,7 @@ export function RevenueAnalytics() {
 
         // Transform revenue data for charts
         const monthlyData = analytics.payouts.map(payout => ({
-          name: new Date(payout.createdAt || "").toLocaleDateString('en-US', { month: 'short' }),
+          name: new Date(payout.created_at || "").toLocaleDateString('en-US', { month: 'short' }),
           revenue: payout._sum?.amount || 0,
           payouts: payout.status === 'completed' ? payout._sum?.amount || 0 : 0,
         }));

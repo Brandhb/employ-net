@@ -63,7 +63,7 @@ export function NotificationBell() {
                       {notification.title}
                     </p>
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.createdAt), {
+                      {formatDistanceToNow(new Date(notification.createdAt || ""), {
                         addSuffix: true,
                       })}
                     </span>
