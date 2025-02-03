@@ -4,10 +4,10 @@ const typeform = createClient({
   token: process.env.TYPEFORM_ACCESS_TOKEN,
 });
 
-export async function getTypeformResponse(responseId: string) {
+export async function getTypeformResponse(formId: string) {
   try {
-    const response = await typeform.responses.get({
-      uid: responseId,
+    const response = await typeform.responses.list({
+      uid: formId,
     });
     return response;
   } catch (error) {
@@ -23,7 +23,7 @@ export async function createTypeformWebhook(formId: string, webhookUrl: string) 
       tag: "survey-completion",
       url: webhookUrl,
       enabled: true,
-      verify_ssl: true,
+      verifySSL: true, // Corrected property name
     });
     return webhook;
   } catch (error) {
