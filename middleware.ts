@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
+  
   //debugger;
   const { sessionId, userId } = await auth();
 
@@ -27,7 +28,8 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   if (!isPublicRoute(request) && sessionId) {
     try {
       // Fetch user details using Clerk's API and `user_id`
-      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+      const clerkSecretKey = process.env.NODE_ENV === "production" ?
+       process.env.CLERK_SECRET_KEY : process.env.CLERK_SECRET_KEY;
       const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${userId}`, {
         headers: {
           Authorization: `Bearer ${clerkSecretKey}`,
