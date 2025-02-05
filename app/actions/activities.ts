@@ -47,6 +47,7 @@ export async function getRecentActivities(userId: string, limit = 5) {
 }
 
 export async function getUserStats(userId: string) {
+
   const user = await prisma.user.findUnique({
     where: {
       employClerkUserId: userId
@@ -166,7 +167,10 @@ export async function getActivityStats(userId: string) {
 
   // Group activities by date and calculate stats
   const stats = activities.reduce((acc, activity) => {
-    const date = activity.createdAt?.toISOString().split('T')[0] || "";
+    const date = activity.createdAt 
+    ? new Date(activity.createdAt).toISOString().split('T')[0] 
+    : "";
+
     if (!acc[date] && activity.createdAt) {
       acc[date] = {
         createdAt: activity.createdAt ,

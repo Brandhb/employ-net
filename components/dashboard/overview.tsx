@@ -31,14 +31,14 @@ export function Overview() {
 
       try {
         const stats = await getActivityStats(userId);
-        const formattedData: ActivityData[] = stats.map(stat => ({
-          date: new Date(stat.createdAt).toLocaleDateString(),
+        const formattedData: ActivityData[] = stats.map((stat) => ({
+          date: new Date(stat.createdAt).toISOString().split("T")[0],
           activities: stat._count,
-          points: stat.points || 0
+          points: stat.points || 0,
         }));
         setData(formattedData);
       } catch (error) {
-        console.error('Error fetching activity stats:', error);
+        console.error("Error fetching activity stats:", error);
       } finally {
         setIsLoading(false);
       }
@@ -60,20 +60,39 @@ export function Overview() {
 
   return (
     <ResponsiveContainer width="100%" height={350}>
-      <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+      <AreaChart
+        data={data}
+        margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+      >
         <defs>
           <linearGradient id="colorActivities" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+            <stop
+              offset="5%"
+              stopColor="hsl(var(--primary))"
+              stopOpacity={0.8}
+            />
+            <stop
+              offset="95%"
+              stopColor="hsl(var(--primary))"
+              stopOpacity={0}
+            />
           </linearGradient>
           <linearGradient id="colorPoints" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.8}/>
-            <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0}/>
+            <stop
+              offset="5%"
+              stopColor="hsl(var(--destructive))"
+              stopOpacity={0.8}
+            />
+            <stop
+              offset="95%"
+              stopColor="hsl(var(--destructive))"
+              stopOpacity={0}
+            />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-        <XAxis 
-          dataKey="date" 
+        <XAxis
+          dataKey="date"
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
           tickLine={false}
@@ -92,13 +111,15 @@ export function Overview() {
               return (
                 <Card>
                   <CardContent className="p-2">
-                    <p className="text-sm font-medium">{payload[0].payload.date}</p>
+                    <p className="text-sm font-medium">
+                      {payload[0].payload.date}
+                    </p>
                     <div className="mt-1 space-y-1">
                       <p className="text-xs text-muted-foreground">
                         Activities: {payload[0].value}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Points: {payload[1].value}
+                        Points: {payload[1]?.value || 0}
                       </p>
                     </div>
                   </CardContent>
