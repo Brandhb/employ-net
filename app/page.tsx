@@ -9,6 +9,7 @@ import { AvatarCircles } from "@/components/ui/avatar-circles";
 import { Particles } from "@/components/ui/particles";
 import { Safari } from "@/components/ui/safari";
 import { GlobeComponent } from "@/components/landing/GlobeComponent";
+import { Globe } from "@/components/ui/globe";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { Testimonials } from "@/components/ui/testimonials";
 import { MagicCard } from "@/components/ui/magic-card";
@@ -37,6 +38,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import FAQSection from "@/components/landing/FAQSection";
+import { ContactForm } from "@/components/contact-form";
 
 const avatarUrls = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&h=100",
@@ -198,9 +200,9 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 items-center">
-            <div className="">
-            <World />
-
+            <div className="relative h-[500px]">
+              <Globe className="scale-125" />
+              <div className="absolute inset-0 bg-gradient-radial from-transparent to-background z-10" />
             </div>
 
             <div className="space-y-8 text-center md:text-left">
@@ -343,10 +345,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="py-20 px-4 lg:px-20 bg-gradient-to-b from-background via-muted/50 to-backgroun">
-      <div className="max-w-7xl mx-auto">
-        <FAQSection />
-      </div>
+      <section className="py-20 px-4 lg:px-20 bg-gradient-to-b from-background via-muted/50 to-background">
+        <div className="max-w-7xl mx-auto">
+          <FAQSection />
+        </div>
       </section>
 
       {/* Testimonials Section 
@@ -372,6 +374,20 @@ export default function LandingPage() {
         </div>
       </section>
 */}
+      {/* Contact Section */}
+      <section className="py-20 px-4 lg:px-20 bg-gradient-to-b from-background to-muted/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Get in Touch</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Have questions or need assistance? We&apos;re here to help! Fill out
+              the form below and our team will get back to you shortly.
+            </p>
+          </div>
+          <ContactForm />
+        </div>
+      </section>
+
       {/* Enhanced Footer */}
       <footer className="border-t bg-muted/50">
         <div className="max-w-7xl mx-auto py-12 px-4">

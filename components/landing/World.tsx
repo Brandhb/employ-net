@@ -68,7 +68,7 @@ const World = () => {
   }, [globeReady]);
 
   return (
-    <div className="w-full h-[400px] md:h-[500px] lg:h-[600px] flex justify-center items-center">
+    <div className="w-full h-[400px] md:h-[500px] lg:h-[600px] flex justify-end items-end my-24 md:my-2">
       <Globe
         globeImageUrl="//unpkg.com/three-globe/example/img/earth-day.jpg"
         onGlobeReady={() => setGlobeReady(true)}
