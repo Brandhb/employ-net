@@ -160,9 +160,9 @@ export default function LandingPage() {
             </div>
             <div className="space-x-4">
               <SignedIn>
-                <RainbowButton>
+                <Button>
                   <Link href="/dashboard">Dashboard</Link>
-                </RainbowButton>
+                </Button>
               </SignedIn>
               <SignedOut>
                 <Button variant="ghost" asChild>

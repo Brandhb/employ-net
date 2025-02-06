@@ -28,7 +28,7 @@ const mobileImages = [
 
 export default function MobilePreview() {
   return (
-    <section className="py-20 px-8 md:px-12 lg:px-20 bg-gradient-to-b from-background to-muted/50">
+    <section className="py-20 px-8 md:px-12 lg:px-20 bg-gradient-to-b from-muted/50 via-background to-muted/50">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">
@@ -59,7 +59,7 @@ export default function MobilePreview() {
               <CarouselContent className="-ml-2 md:-ml-4">
                 {mobileImages.map((image, index) => (
                   <CarouselItem key={index} className="pl-4">
-                    <Iphone15Pro className="w-64 h-96 mx-auto" src={image.url} />
+                    <Iphone15Pro className="w-50 h-[400px] mx-auto" src={image.url} />
                   </CarouselItem>
                 ))}
               </CarouselContent>

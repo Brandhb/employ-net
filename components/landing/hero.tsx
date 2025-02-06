@@ -2,7 +2,7 @@ import { SparklesText } from "@/components/ui/sparkles-text";
 import { Particles } from "@/components/ui/particles";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import Link from "next/link";
-import { MoveRight, PlayCircle } from "lucide-react";
+import { ChevronRightIcon, MoveRight, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AvatarCircles } from "../ui/avatar-circles";
 
@@ -37,7 +37,7 @@ export default function Hero() {
             <RainbowButton>
               <Link href="/sign-up" className="flex items-center">
                 Start Earning Today
-                <MoveRight className="ml-2 h-4 w-4" />
+                <ChevronRightIcon className="ml-1 size-4 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </RainbowButton>
             <Button variant="outline" size="lg" asChild>
