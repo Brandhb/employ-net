@@ -43,9 +43,12 @@ export default function SignInPage() {
             {" "}
             {/* Added space */}
             <SignIn
+              fallbackRedirectUrl="/dashboard"
+              signUpFallbackRedirectUrl="/dashboard"
               appearance={{
                 elements: {
-                  rootBox: "w-full flex flex-col gap-4 items-center justify-center", // Spacing between elements
+                  rootBox:
+                    "w-full flex flex-col gap-4 items-center justify-center", // Spacing between elements
                   card: "bg-white shadow-md rounded-xl p-6 space-y-4", // Card styling
                   header: "hidden",
                   footer: "hidden",

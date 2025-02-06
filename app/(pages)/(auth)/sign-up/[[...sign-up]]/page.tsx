@@ -40,9 +40,12 @@ export default function SignUpPage() {
           {/* Clerk Sign-Up Component */}
           <div className="bg-transparent rounded-lg px-4 py-6 space-y-4">
             <SignUp
+              fallbackRedirectUrl="/dashboard"
+              signInFallbackRedirectUrl="/dashboard"
               appearance={{
                 elements: {
-                  rootBox: "w-full max-w-lg min-w-lg flex flex-col gap-4 items-center justify-center", // Spacing between elements
+                  rootBox:
+                    "w-full max-w-lg min-w-lg flex flex-col gap-4 items-center justify-center", // Spacing between elements
                   card: "bg-white max-w-lg min-w-lg shadow-md rounded-xl p-6 space-y-4", // Card styling
                   header: "hidden",
                   footer: "hidden",
