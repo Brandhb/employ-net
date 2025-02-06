@@ -9,30 +9,32 @@ import { Safari } from "@/components/ui/safari";
 
 export default function SignUpPage() {
   return (
-    <div className="flex min-h-screen bg-gradient-to-r from-primary/20 via-background to-primary/10">
+    <div className="flex min-h-screen bg-gradient-to-r from-primary/20 via-background to-primary/10 dark:from-gray-900 dark:via-black dark:to-gray-900">
       {/* Left Section: Sign-Up Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
-          className="relative w-full max-w-lg bg-white/50 dark:bg-black/50 border-gray-300 dark:border-gray-700 shadow-xl rounded-2xl p-10 space-y-6"
+          className="relative w-full max-w-lg bg-white/50 dark:bg-gray-800/70 border border-gray-300 dark:border-gray-700 shadow-xl rounded-2xl p-10 space-y-6"
         >
           {/* Decorative Glow Effect */}
-          <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 w-40 h-40 bg-gradient-to-r from-blue-500 to-purple-500 blur-3xl opacity-30"></div>
+          <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 w-40 h-40 bg-gradient-to-r from-blue-500 to-purple-500 blur-3xl opacity-30 dark:opacity-50"></div>
 
           {/* Logo */}
           <div className="flex items-center justify-center gap-2">
-            <Briefcase className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-extrabold text-primary drop-shadow-md">
+            <Briefcase className="h-8 w-8 text-primary dark:text-primary/80" />
+            <h1 className="text-3xl font-extrabold text-primary dark:text-white drop-shadow-md">
               Employ-Net
             </h1>
           </div>
 
           {/* Header */}
           <div className="mb-10 text-center">
-            <h2 className="text-2xl font-bold">Create Your Account</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Create Your Account
+            </h2>
+            <p className="text-sm text-muted-foreground dark:text-gray-400">
               Join Employ-Net and start your employment journey today.
             </p>
           </div>
@@ -45,8 +47,9 @@ export default function SignUpPage() {
               appearance={{
                 elements: {
                   rootBox:
-                    "w-full max-w-lg min-w-lg flex flex-col gap-4 items-center justify-center", // Spacing between elements
-                  card: "bg-white max-w-lg min-w-lg shadow-md rounded-xl p-6 space-y-4", // Card styling
+                    "w-full max-w-lg min-w-lg flex flex-col gap-4 items-center justify-center",
+                  card:
+                    "bg-background dark:bg-gray-900 shadow-md rounded-xl p-6 space-y-4 border border-gray-200 dark:border-gray-700",
                   header: "hidden",
                   footer: "hidden",
                   socialButtonsBlockButton:
@@ -65,11 +68,11 @@ export default function SignUpPage() {
           </div>
 
           {/* Sign-In Redirect */}
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="text-center text-sm text-muted-foreground dark:text-gray-400">
             Already have an account?{" "}
             <Link
               href="/sign-in"
-              className="text-primary font-semibold hover:underline"
+              className="text-primary dark:text-primary/80 font-semibold hover:underline"
             >
               Sign In
             </Link>
@@ -77,7 +80,7 @@ export default function SignUpPage() {
 
           {/* Back to Home */}
           <div className="flex justify-center">
-            <Button variant="outline" asChild>
+            <Button variant="outline" className="dark:border-gray-500 dark:text-gray-300" asChild>
               <Link href="/">← Back to Home</Link>
             </Button>
           </div>
@@ -85,7 +88,7 @@ export default function SignUpPage() {
       </div>
 
       {/* Right Section: Cover Image */}
-      <div className="hidden lg:flex w-1/2 items-center justify-center bg-gradient-to-bl from-primary/10 via-background to-primary/20 p-8">
+      <div className="hidden lg:flex w-1/2 items-center justify-center bg-gradient-to-bl from-primary/10 via-background to-primary/20 dark:from-gray-900 dark:via-black dark:to-gray-900 p-8">
         <motion.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -94,7 +97,7 @@ export default function SignUpPage() {
         >
           <Safari
             url="employ-net.com/dashboard"
-            src="/images/dashboard-user.png"
+            src="/images/dashboard-user.webp"
             className="w-full max-w-5xl h-auto mx-auto shadow-2xl rounded-lg"
           />
         </motion.div>

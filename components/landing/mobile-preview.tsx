@@ -45,7 +45,7 @@ export default function MobilePreview() {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="relative max-w-md mx-auto"
+          className="relative max-w-md mx-auto w-fulls"
         >
           <Suspense fallback={<MobilePreviewSkeleton />}>
             <Carousel
@@ -56,10 +56,10 @@ export default function MobilePreview() {
                 }),
               ]}
             >
-              <CarouselContent className="-ml-2 md:-ml-4">
+              <CarouselContent>
                 {mobileImages.map((image, index) => (
-                  <CarouselItem key={index} className="pl-4">
-                    <Iphone15Pro className="w-50 h-[400px] mx-auto" src={image.url} />
+                  <CarouselItem key={index}>
+                    <Iphone15Pro className="w-50 h-[400px] mx-auto w-full" src={image.url} />
                   </CarouselItem>
                 ))}
               </CarouselContent>

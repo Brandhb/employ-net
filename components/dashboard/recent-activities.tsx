@@ -25,7 +25,7 @@ export function RecentActivities() {
       debugger;
       const recentActivities = await getRecentActivities(userId);
     
-      const transformedActivities = recentActivities.map((log) => ({
+      const transformedActivities = recentActivities?.map((log) => ({
         ...log,
         activityId: log.activityId || undefined, // Convert `null` to `undefined`
         createdAt: log.createdAt || undefined, // Ensure `createdAt` matches the interface
