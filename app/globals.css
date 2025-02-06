@@ -2,12 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Root Color Variables */
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
 }
 
+/* Dark Mode Settings */
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
@@ -16,6 +18,7 @@
   }
 }
 
+/* Base Layer */
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -49,6 +52,7 @@
     --color-4: 195 100% 63%;
     --color-5: 90 100% 63%;
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -77,11 +81,60 @@
   }
 }
 
+/* Apply Tailwind Utilities */
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    overflow-y: auto; /* Enable vertical scrolling */
+    scroll-behavior: smooth; /* Smooth scrolling */
   }
+}
+
+/* Fix for Mobile View */
+html,
+body {
+  min-height: 100vh; /* Full screen height */
+  overflow-x: hidden; /* Disable horizontal scroll */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* Responsive Fix for Mobile Screens */
+@media (max-width: 768px) {
+  html,
+  body {
+    height: auto;
+    min-height: 100vh; /* Ensure content fills the screen */
+  }
+
+  #__next {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+}
+
+.cl-cardBox, .cl-signIn-start {
+  width: 100%;
+  max-width: 450px; /* Ensures it doesn't get too wide on large screens */
+  min-width: 280px; /* Prevents it from being too small on mobile */
+}
+
+/* Adjust layout on smaller screens */
+@media (max-width: 640px) {
+  .cl-cardBox, .cl-signIn-start {
+    width: 100%; /* Use most of the available screen space */
+    min-width: unset; /* Allow it to shrink if necessary */
+  }
+}
+
+/* Ensure alignment for all screen sizes */
+.cl-signIn-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }

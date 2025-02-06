@@ -36,7 +36,7 @@ const faqs = [
   },
 ];
 
-const FAQSection = () => {
+export const FAQ = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggleFAQ = (index: number) => {
@@ -44,7 +44,6 @@ const FAQSection = () => {
   };
 
   return (
-    <section className="py-20 px-4 bg-gradient-to-b from-background via-muted/50 to-background">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-bold text-center mb-8">Frequently Asked Questions</h2>
         <div className="space-y-4">
@@ -73,8 +72,6 @@ const FAQSection = () => {
           ))}
         </div>
       </div>
-    </section>
   );
 };
 
-export default FAQSection;

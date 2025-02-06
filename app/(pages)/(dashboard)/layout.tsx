@@ -132,9 +132,8 @@ export default function DashboardLayout({
                 ))}
               </div>
             </div>
-            <div className="p-4">
+            <div>
               <UserButton
-                afterSignOutUrl="/"
                 appearance={{
                   elements: {
                     rootBox: "w-full",
@@ -149,12 +148,15 @@ export default function DashboardLayout({
             </div>
           </SidebarBody>
         </Sidebar>
-        <main className="flex-1 p-8">
+        <main className="flex-1 p-8 overflow-y-auto lg:min-h-screen">
           <div className="flex justify-end mb-4">
             <NotificationBell />
           </div>
           <AdContainer />
-          {children}
+          <div className=" m-auto">
+            {children}
+          </div>
+          
         </main>
       </div>
     </NotificationProvider>
