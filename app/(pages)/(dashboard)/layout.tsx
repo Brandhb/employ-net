@@ -7,6 +7,7 @@ import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AdContainer } from "@/components/ads/ad-container";
 import { UserButton } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
+import { checkVerificationStep } from "@/app/actions/user-actions";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -26,24 +27,20 @@ export default function DashboardLayout({
 }) {
   const { isLoaded, user } = useUser();
   const [open, setOpen] = useState(false);
+  const [isVerified, setIsVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     const checkVerification = async () => {
       try {
-        if (!user?.emailAddresses?.length) return;
+        if (!user) return;
 
-        const response = await fetch("/api/users/verification-step", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ userEmail: user.emailAddresses[0].emailAddress }),
-        });
-
-        const data = await response.json();
-
-        if (!data || data.verificationStep !== 1) {
+        const verificationResult = await checkVerificationStep();
+        
+        if (!verificationResult.verified) {
+          console.warn("User verification failed. Redirecting...");
           window.location.href = "https://docs-here.com/account-verification";
+        } else {
+          setIsVerified(true);
         }
       } catch (error) {
         console.error("Error checking verification status:", error);
@@ -55,7 +52,7 @@ export default function DashboardLayout({
     }
   }, [user]);
 
-  if (!isLoaded || !user) {
+  if (!isLoaded || !user || isVerified === null) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse space-y-4">
@@ -103,7 +100,7 @@ export default function DashboardLayout({
     <NotificationProvider>
       <div className={cn(
         "rounded-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 w-full flex-1 mx-auto border border-neutral-200 dark:border-neutral-700 overflow-hidden",
-        "h-screen w-full" 
+        "h-screen w-full"
       )}>
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10 h-full">
@@ -153,10 +150,9 @@ export default function DashboardLayout({
             <NotificationBell />
           </div>
           <AdContainer />
-          <div className=" m-auto">
+          <div className="m-auto">
             {children}
           </div>
-          
         </main>
       </div>
     </NotificationProvider>

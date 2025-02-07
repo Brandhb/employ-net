@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
+import { checkVerificationStep } from "@/app/actions/user-actions";
 
 export default function AccountVerificationCompletePage() {
   const [verificationStep, setVerificationStep] = useState<number | null>(null);
@@ -15,29 +16,17 @@ export default function AccountVerificationCompletePage() {
       setLoading(true);
 
       try {
-        const response = await fetch("/api/users/verification-step", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+        const result = await checkVerificationStep();
 
-        const data = await response.json();
-
-        if (data && data.verificationStep !== undefined) {
-          setVerificationStep(data.verificationStep);
-
-          if (data.verificationStep === 1) {
-            // Redirect to dashboard if verified
-            setTimeout(() => {
-              router.push("/dashboard");
-            }, 1500); // Redirect after 1.5 seconds
-          }
+        if (result?.verified) {
+          setVerificationStep(1);
+          setTimeout(() => router.push("/dashboard"), 1500);
         } else {
-          console.error("Verification step not found in response:", data);
+          setVerificationStep(0);
         }
       } catch (error) {
         console.error("Error checking verification step:", error);
+        setVerificationStep(0);
       }
 
       setLoading(false);

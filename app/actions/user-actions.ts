@@ -37,37 +37,49 @@ export const getEmails = async () => {
 };
 
 export async function checkVerificationStep() {
-  debugger;
   try {
     const user = await getClerkUserObject();
     if (!user) {
+      console.error("User not authenticated.");
       return { verified: false, reason: "User not authenticated" };
     }
 
-    const employClerkUserId = user?.id;
-    // Extract email addresses and get the first email
-    const emails = await getEmails(); // Fetch emails
-    console.log("emails:", emails);
-    console.log(user.id);
+    const employClerkUserId = user.id;
 
+    // Extract email addresses
+    const emails = await getEmails();
     if (!emails || emails.length === 0) {
-      return { verified: false, reason: "There are no email addresses" };
+      console.error("No email addresses found for user:", employClerkUserId);
+      return { verified: false, reason: "No email addresses associated with account" };
     }
 
-    // Call the server action to fetch the verification step
-    const verificationStep = await getUserVerificationStep(employClerkUserId);
+    console.log("Checking verification step for user:", employClerkUserId);
 
-    // Ensure the verificationStep is properly accessed
+    let verificationStep;
+    let attempts = 3; // Retry mechanism in case of DB sync delay
+
+    while (attempts > 0) {
+      verificationStep = await getUserVerificationStep(employClerkUserId);
+      if (verificationStep !== undefined && verificationStep === 1) break;
+
+      console.warn(`Attempt ${4 - attempts}: Verification step not found. Retrying...`);
+      await new Promise((res) => setTimeout(res, 1000)); // Wait before retrying
+      attempts--;
+    }
+
     if (!verificationStep || verificationStep !== 1) {
+      console.warn("User verification incomplete after retries:", employClerkUserId);
       return { verified: false, reason: "User verification incomplete" };
     }
 
+    console.log("User verification successful:", employClerkUserId);
     return { verified: true };
   } catch (error) {
     console.error("Error in checkVerificationStep:", error);
     return { verified: false, reason: "Server error" };
   }
 }
+
 
 export const getDbUser = async (userId: string) => {
  // const clerkUser = await currentUser();

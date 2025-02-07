@@ -22,19 +22,20 @@ export default function AccountVerificationPage() {
   const checkVerification = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await checkVerificationStep();
-      if (data?.verified) {
-        setVerified(data.verified);
-        if (data.verified) {
-          setTimeout(() => router.push("/dashboard"), 1500);
-        }
+      const verificationResult = await checkVerificationStep();
+      if (verificationResult?.verified) {
+        setVerified(true);
+        setTimeout(() => router.push("/dashboard"), 1500);
+      } else {
+        setVerified(false);
       }
     } catch (error) {
       console.error("Error checking verification:", error);
+      setVerified(false);
     }
     setLoading(false);
   }, [router]);
-  
+
   useEffect(() => {
     checkVerification();
   }, [checkVerification]);
@@ -126,7 +127,7 @@ export default function AccountVerificationPage() {
             onClick={() => router.push("/dashboard")}
             variant="secondary"
             className="mt-6 px-6 py-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
-            disabled={verified || true}
+            disabled={!verified}
           >
             Go to Dashboard
           </Button>
