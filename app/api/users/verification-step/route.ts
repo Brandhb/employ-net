@@ -7,10 +7,13 @@ export async function POST(request: Request) {
     // Parse the request JSON
     const { fromMiddleware, userId: middlewareUserId, userEmail } = await request.json();
 
+    console.log("Received Request:", { fromMiddleware, middlewareUserId, userEmail });
+
     // Determine userId
-    const userId = fromMiddleware 
-      ? middlewareUserId 
-      : (await auth()).userId;
+    const authUser = await auth();
+    const userId = fromMiddleware ? middlewareUserId : authUser?.userId;
+
+    console.log("Resolved User ID:", userId);
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,13 +24,23 @@ export async function POST(request: Request) {
     }
 
     // Fetch the verification step
-    const verificationStep = await getUserVerificationStep(userId);
+    let verificationStep;
+    try {
+      verificationStep = await getUserVerificationStep(userId);
+      if (verificationStep === undefined) {
+        verificationStep = 0;
+      }
+    } catch (error) {
+      console.error("Error fetching verification step:", error);
+      return NextResponse.json({ error: "Failed to fetch verification step" }, { status: 500 });
+    }
 
+    console.log("Returning Verification Step:", verificationStep);
     return NextResponse.json({ verificationStep });
   } catch (error) {
-    console.error("Error fetching user verification step:", error);
+    console.error("Error in verification API:", error);
     return NextResponse.json(
-      { error: "Internal server error", details: error },
+      { error: "Internal server error", details: (error as Error)?.message || "Unknown error" },
       { status: 500 }
     );
   }

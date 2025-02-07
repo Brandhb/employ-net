@@ -9,8 +9,6 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
-  
-  //debugger;
   const { sessionId, userId } = await auth();
 
   if (userId) {
@@ -19,34 +17,42 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
   // Redirect unauthenticated users to sign-in if accessing protected routes
   if (!isPublicRoute(request) && !sessionId) {
-    const url = new URL(request.url);
-    url.pathname = "/sign-in";
-    return NextResponse.redirect(url);
+    console.warn("Unauthorized access attempt detected, redirecting to sign-in.");
+    return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
   // If authenticated, fetch user email and verify the `verificationStep`
   if (!isPublicRoute(request) && sessionId) {
     try {
-      // Fetch user details using Clerk's API and `user_id`
-      const clerkSecretKey = process.env.NODE_ENV === "production" ?
-       process.env.CLERK_SECRET_KEY : process.env.CLERK_SECRET_KEY;
+      const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+      if (!clerkSecretKey) {
+        throw new Error("CLERK_SECRET_KEY is missing in environment variables.");
+      }
+
+      // Fetch user details using Clerk API
+      console.log("Fetching user details from Clerk API...");
       const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${userId}`, {
         headers: {
           Authorization: `Bearer ${clerkSecretKey}`,
+          "Content-Type": "application/json",
         },
       });
 
+      if (!clerkResponse.ok) {
+        console.error(`Clerk API request failed with status: ${clerkResponse.status}`);
+        return NextResponse.redirect(new URL("/error", request.url));
+      }
+
       const user = await clerkResponse.json();
-      const userEmail = user?.email_addresses[0]?.email_address;
+      const userEmail = user?.email_addresses?.[0]?.email_address;
 
       if (!userEmail) {
-        console.error("User email not found");
-        const url = new URL(request.url);
-        url.pathname = "/account-verification";
-        return NextResponse.redirect(url);
+        console.error("User email not found. Redirecting to verification page.");
+        return NextResponse.redirect(new URL("/account-verification", request.url));
       }
 
       // Call API route to check verification step
+      console.log("Verifying user verification step...");
       const verificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`, {
         method: "POST",
         headers: {
@@ -55,18 +61,20 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         body: JSON.stringify({ userEmail, fromMiddleware: true, userId }),
       });
 
+      if (!verificationResponse.ok) {
+        console.error(`Verification API request failed with status: ${verificationResponse.status}`);
+        return NextResponse.redirect(new URL("/error", request.url));
+      }
+
       const verificationResult = await verificationResponse.json();
 
-      if (!verificationResult && verificationResult.verificationStep !== 1) {
-        const url = new URL(request.url);
-        url.pathname = "/account-verification";
-        return NextResponse.redirect(url);
+      if (!verificationResult || verificationResult.verificationStep !== 1) {
+        console.warn("User verification incomplete. Redirecting...");
+        return NextResponse.redirect(new URL("/account-verification", request.url));
       }
     } catch (error) {
-      console.error("Verification check failed:", error);
-      const url = new URL(request.url);
-      url.pathname = "/404";
-      return NextResponse.redirect(url);
+      console.error("Middleware Error:", (error as Error)?.message || "Unknown error");
+      return NextResponse.redirect(new URL("/error", request.url));
     }
   }
 
