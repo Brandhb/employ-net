@@ -3,7 +3,7 @@
 import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Briefcase } from "lucide-react";
+import { Briefcase, ChevronLeftIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Safari } from "@/components/ui/safari";
 
@@ -80,8 +80,15 @@ export default function SignInPage() {
 
           {/* Back to Home */}
           <div className="flex justify-center">
-            <Button variant="outline" className="dark:border-gray-500 dark:text-gray-300" asChild>
-              <Link href="/">← Back to Home</Link>
+          <Button
+              variant="outline"
+              className="dark:border-gray-500 dark:text-gray-300 group"
+              asChild
+            >
+              <Link href="/" className="flex items-center">
+                <ChevronLeftIcon className="mr-1 size-4 transition-transform duration-300 group-hover:-translate-x-1" />
+                Back to Home
+              </Link>
             </Button>
           </div>
         </motion.div>
