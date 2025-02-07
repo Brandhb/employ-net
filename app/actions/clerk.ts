@@ -3,20 +3,26 @@ import { formatName } from "@/lib/utils";
 import { WebhookEvent } from "@clerk/nextjs/server";
 
 export const handleEvent = async (evt: WebhookEvent) => {
+  console.log("Handle Event Now")
   const { type: eventType, data } = evt;
 
   switch (eventType) {
     case "user.created":
       await handleUserCreated(data);
+      console.log("handleUserCreated")
       break;
     case "user.updated":
       await handleUserUpdated(data);
+      console.log("handleUserUpdated")
       break;
     case "user.deleted":
       await handleUserDeleted(data);
+      console.log("handleUserDeleted")
       break;
     default:
+      console.log(`Unhandled event type: ${eventType}`)
       throw new Error(`Unhandled event type: ${eventType}`);
+      
   }
 };
 

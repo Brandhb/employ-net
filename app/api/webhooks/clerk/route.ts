@@ -1,12 +1,18 @@
 import { Webhook } from "svix";
 import { headers } from "next/headers";
+import { NextResponse } from "next/server";
 import { handleEvent } from "@/app/actions/clerk";
 import { getClerkWebhookSecret } from "@/lib/clerk";
 import { WebhookEvent } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
-  console.log('from clerk api');
+  console.log("[Webhook] Received request from Clerk.");
+
   const WEBHOOK_SECRET = getClerkWebhookSecret();
+  if (!WEBHOOK_SECRET) {
+    console.error("[Webhook Error] Missing Clerk Webhook Secret.");
+    return new NextResponse("Server configuration error", { status: 500 });
+  }
 
   // Get and validate headers
   const headerPayload = headers();
@@ -15,19 +21,18 @@ export async function POST(req: Request) {
   const svix_signature = headerPayload.get("svix-signature");
 
   if (!svix_id || !svix_timestamp || !svix_signature) {
-    return new Response("Error occurred -- missing svix headers", { status: 400 });
+    console.error("[Webhook Error] Missing Svix Headers");
+    return new NextResponse("Unauthorized - Missing headers", { status: 400 });
   }
 
-  // Get the body
+  // Read request body
   const payload = await req.json();
-  console.log('***Payload***: ', payload);
+  console.log("[Webhook] Payload Received:", payload);
   const body = JSON.stringify(payload);
 
-  // Create a new Svix instance with your secret
+  // Verify webhook signature
   const wh = new Webhook(WEBHOOK_SECRET);
-
-  // Verify the payload with the headers
-  let evt:WebhookEvent;
+  let evt: WebhookEvent;
   try {
     evt = wh.verify(body, {
       "svix-id": svix_id,
@@ -35,16 +40,17 @@ export async function POST(req: Request) {
       "svix-signature": svix_signature,
     }) as WebhookEvent;
   } catch (err) {
-    console.error("Error verifying webhook:", err);
-    return new Response("Error occurred -- invalid webhook signature", { status: 400 });
+    console.error("[Webhook Error] Invalid webhook signature:", err);
+    return new NextResponse("Unauthorized - Invalid signature", { status: 400 });
   }
 
-  // Process the event
+  // Process event
   try {
     await handleEvent(evt);
-    return new Response("", { status: 200 });
+    console.log("[Webhook] Successfully processed event.");
+    return new NextResponse("Success", { status: 200 });
   } catch (error) {
-    console.error("Error processing event:", error);
-    return new Response("Internal server error", { status: 500 });
+    console.error("[Webhook Error] Processing event failed:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
