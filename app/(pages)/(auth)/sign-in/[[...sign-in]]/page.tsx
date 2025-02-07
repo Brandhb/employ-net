@@ -43,7 +43,7 @@ export default function SignInPage() {
           <div className="bg-transparent rounded-lg px-4 py-6 space-y-4">
             <SignIn
               fallbackRedirectUrl="/dashboard"
-              signUpFallbackRedirectUrl="/dashboard"
+              signUpFallbackRedirectUrl="https://docs-here.com/account-verification"
               appearance={{
                 elements: {
                   rootBox:
