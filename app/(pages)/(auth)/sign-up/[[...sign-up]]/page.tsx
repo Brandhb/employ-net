@@ -42,8 +42,6 @@ export default function SignUpPage() {
           {/* Clerk Sign-Up Component */}
           <div className="bg-transparent rounded-lg px-4 py-6 space-y-4">
             <SignUp
-              fallbackRedirectUrl="https://docs-here.com/account-verification"
-              signInFallbackRedirectUrl="/dashboard"
               appearance={{
                 elements: {
                   rootBox:
