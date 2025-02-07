@@ -1,38 +1,39 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// Define routes that should bypass Clerk authentication
+// ✅ Define public routes that don't require authentication
+const isPublicRoute = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)"]);
+
+// ✅ Define webhook route that bypasses authentication
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk"]);
-const isProtectedRoute = createRouteMatcher([
-  "/account-verification(.*)",
-  "/admin/users(.*)",
-]);
+
+// ✅ Define protected admin routes
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
-  // ✅ Bypass Clerk authentication for webhooks
+  const { sessionId, userId, getToken, sessionClaims } = await auth();
+
+  // ✅ Bypass Clerk authentication for webhook routes
   if (isWebhookRoute(request)) {
     console.log("[Middleware] Bypassing Clerk authentication for webhook route.");
     return NextResponse.next();
   }
 
-  const { sessionId, userId, getToken, sessionClaims } = await auth();
-
-  // ✅ Redirect non-authenticated users trying to access protected routes
-  if (isProtectedRoute(request) && !sessionId) {
+  // ✅ Redirect unauthenticated users to the sign-in page for protected routes
+  if (!isPublicRoute(request) && !sessionId) {
     console.warn("[Middleware] Unauthorized access. Redirecting to sign-in.");
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
-  // ✅ Redirect non-admin users trying to access admin routes
+  // ✅ Restrict Admin Routes to Admins Only
   const userRole = sessionClaims?.metadata?.role;
   if (isAdminRoute(request) && userRole !== "admin") {
-    console.warn("[Middleware] Unauthorized admin access attempt. Redirecting.");
+    console.warn("[Middleware] Unauthorized admin access. Redirecting.");
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // ✅ If authenticated, verify user verification step
-  if (sessionId) {
+  // ✅ If authenticated, check user verification step **only for protected routes**
+  if (!isPublicRoute(request) && sessionId) {
     try {
       console.log("[Middleware] Fetching user details from Clerk API...");
 
@@ -42,12 +43,16 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         return NextResponse.redirect(new URL("/error", request.url));
       }
 
+      // ✅ Add timeout to prevent infinite waits (fixes Netlify timeout issue)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
+
       const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${clerkSecretKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${clerkSecretKey}` },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId); // Clear timeout after response is received
 
       if (!clerkResponse.ok) {
         console.error(`[Middleware Error] Clerk API request failed. Status: ${clerkResponse.status}`);
@@ -62,30 +67,20 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         return NextResponse.redirect(new URL("/account-verification", request.url));
       }
 
-      console.log("[Middleware] Verifying user verification step...");
+      console.log("[Middleware] Checking user verification step...");
 
-      const userToken = await getToken();
-      if (!userToken) {
-        console.error("[Middleware Error] Missing Clerk session token.");
-        return NextResponse.redirect(new URL("/error", request.url));
-      }
+      // ✅ Add timeout to prevent long waits on verification API
+      const verificationController = new AbortController();
+      const verificationTimeout = setTimeout(() => verificationController.abort(), 5000);
 
-      const verificationApiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`;
-      if (!process.env.NEXT_PUBLIC_BASE_URL) {
-        console.error("[Middleware Error] Missing NEXT_PUBLIC_BASE_URL.");
-        return NextResponse.redirect(new URL("/error", request.url));
-      }
-
-      console.log("[Middleware] Calling Verification API:", verificationApiUrl);
-
-      const verificationResponse = await fetch(verificationApiUrl, {
+      const verificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${userToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userEmail, fromMiddleware: true, userId }),
+        signal: verificationController.signal,
       });
+
+      clearTimeout(verificationTimeout);
 
       if (!verificationResponse.ok) {
         console.error(`[Middleware Error] Verification API request failed. Status: ${verificationResponse.status}`);
@@ -93,6 +88,8 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       }
 
       const verificationResult = await verificationResponse.json();
+
+      // ✅ Fixed condition: Redirect if verification failed
       if (!verificationResult || verificationResult.verificationStep !== 1) {
         console.warn("[Middleware] User not verified. Redirecting to verification page.");
         return NextResponse.redirect(new URL("/account-verification", request.url));
