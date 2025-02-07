@@ -17,20 +17,23 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
   // Redirect unauthenticated users to sign-in if accessing protected routes
   if (!isPublicRoute(request) && !sessionId) {
-    console.warn("Unauthorized access attempt detected, redirecting to sign-in.");
+    console.warn("[Middleware] Unauthorized access attempt detected. Redirecting to sign-in.");
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
   // If authenticated, fetch user email and verify the `verificationStep`
   if (!isPublicRoute(request) && sessionId) {
     try {
+      console.log("[Middleware] Fetching user details from Clerk API...");
+
+      // Ensure we have a valid Clerk Secret Key
       const clerkSecretKey = process.env.CLERK_SECRET_KEY;
       if (!clerkSecretKey) {
-        throw new Error("CLERK_SECRET_KEY is missing in environment variables.");
+        console.error("[Middleware Error] Missing CLERK_SECRET_KEY environment variable.");
+        return NextResponse.redirect(new URL("/error", request.url));
       }
 
-      // Fetch user details using Clerk API
-      console.log("Fetching user details from Clerk API...");
+      // Fetch user details from Clerk API
       const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${userId}`, {
         headers: {
           Authorization: `Bearer ${clerkSecretKey}`,
@@ -38,22 +41,41 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         },
       });
 
+      const clerkTextResponse = await clerkResponse.text(); // Read raw response
+      console.log("[Middleware] Clerk API Raw Response:", clerkTextResponse);
+
       if (!clerkResponse.ok) {
-        console.error(`Clerk API request failed with status: ${clerkResponse.status}`);
+        console.error(`[Middleware Error] Clerk API request failed. Status: ${clerkResponse.status}`);
         return NextResponse.redirect(new URL("/error", request.url));
       }
 
-      const user = await clerkResponse.json();
-      const userEmail = user?.email_addresses?.[0]?.email_address;
+      let user;
+      try {
+        user = JSON.parse(clerkTextResponse); // Parse JSON safely
+      } catch (error) {
+        console.error("[Middleware Error] Clerk API returned invalid JSON:", clerkTextResponse);
+        return NextResponse.redirect(new URL("/error", request.url));
+      }
 
+      const userEmail = user?.email_addresses?.[0]?.email_address;
       if (!userEmail) {
-        console.error("User email not found. Redirecting to verification page.");
+        console.error("[Middleware Error] User email not found.");
         return NextResponse.redirect(new URL("/account-verification", request.url));
       }
 
-      // Call API route to check verification step
-      console.log("Verifying user verification step...");
-      const verificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`, {
+      console.log("[Middleware] Verifying user verification step...");
+
+      // Check if `NEXT_PUBLIC_BASE_URL` is set correctly
+      const verificationApiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`;
+      if (!process.env.NEXT_PUBLIC_BASE_URL) {
+        console.error("[Middleware Error] Missing NEXT_PUBLIC_BASE_URL environment variable.");
+        return NextResponse.redirect(new URL("/error", request.url));
+      }
+
+      console.log("[Middleware] Verification API URL:", verificationApiUrl);
+
+      // Call verification step API
+      const verificationResponse = await fetch(verificationApiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,19 +83,30 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         body: JSON.stringify({ userEmail, fromMiddleware: true, userId }),
       });
 
+      const verificationTextResponse = await verificationResponse.text();
+      console.log("[Middleware] Verification API Raw Response:", verificationTextResponse);
+
       if (!verificationResponse.ok) {
-        console.error(`Verification API request failed with status: ${verificationResponse.status}`);
+        console.error(`[Middleware Error] Verification API request failed. Status: ${verificationResponse.status}`);
         return NextResponse.redirect(new URL("/error", request.url));
       }
 
-      const verificationResult = await verificationResponse.json();
+      let verificationResult;
+      try {
+        verificationResult = JSON.parse(verificationTextResponse);
+      } catch (error) {
+        console.error("[Middleware Error] Verification API returned invalid JSON:", verificationTextResponse);
+        return NextResponse.redirect(new URL("/error", request.url));
+      }
 
+      // If user has not completed verification, redirect them
       if (!verificationResult || verificationResult.verificationStep !== 1) {
-        console.warn("User verification incomplete. Redirecting...");
+        console.warn("[Middleware] User not verified. Redirecting to verification page.");
         return NextResponse.redirect(new URL("/account-verification", request.url));
       }
+
     } catch (error) {
-      console.error("Middleware Error:", (error as Error)?.message || "Unknown error");
+      console.error("[Middleware Error] Unexpected error occurred:", error);
       return NextResponse.redirect(new URL("/error", request.url));
     }
   }
@@ -83,9 +116,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
     "/(api|trpc)(.*)",
   ],
 };
