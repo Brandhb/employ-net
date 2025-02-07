@@ -15,7 +15,15 @@ const nextConfig = {
     unoptimized: true,
   },
   trailingSlash: true,
-  
+  async redirects() {
+    return [
+      {
+        source: "/api/webhooks/:path*",
+        destination: "/api/webhooks/:path*",
+        permanent: false, // Ensures no redirection
+      },
+    ];
+  },
 };
 
 export default nextConfig;

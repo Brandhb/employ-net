@@ -1,25 +1,38 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
+// Define routes that should bypass Clerk authentication
+const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk"]);
+const isProtectedRoute = createRouteMatcher([
+  "/account-verification(.*)",
+  "/admin/users(.*)",
 ]);
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
-  const { sessionId, userId, getToken } = await auth();
-
-  if (userId) {
-    request.headers.set("x-user-id", userId);
+  // Bypass Clerk authentication for webhook calls
+  if (isWebhookRoute(request)) {
+    console.log("[Middleware] Bypassing Clerk authentication for webhook route.");
+    return NextResponse.next();
   }
 
-  if (!isPublicRoute(request) && !sessionId) {
-    console.warn("[Middleware] Unauthorized access attempt. Redirecting to sign-in.");
+  const { sessionId, userId, getToken, sessionClaims } = await auth();
+
+  // If it's an admin route, check if the user is an admin
+  const userRole = sessionClaims?.metadata?.role;
+  if (isAdminRoute(request) && userRole !== "admin") {
+    console.warn("[Middleware] Unauthorized admin access attempt. Redirecting.");
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Protect standard protected routes
+  if (isProtectedRoute(request) && !sessionId) {
+    console.warn("[Middleware] Unauthorized access. Redirecting to sign-in.");
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
-  if (!isPublicRoute(request) && sessionId) {
+  // If authenticated, verify user verification step
+  if (sessionId) {
     try {
       console.log("[Middleware] Fetching user details from Clerk API...");
 
@@ -50,7 +63,6 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
       console.log("[Middleware] Verifying user verification step...");
 
-      // Fetch the Clerk session token
       const userToken = await getToken();
       if (!userToken) {
         console.error("[Middleware Error] Missing Clerk session token.");
