@@ -43,7 +43,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         return NextResponse.redirect(new URL("/error", request.url));
       }
 
-      // ✅ Add timeout to prevent infinite waits (fixes Netlify timeout issue)
+      // ✅ Add timeout to prevent infinite waits
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
 
@@ -82,11 +82,14 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
       clearTimeout(verificationTimeout);
 
+      // ✅ Validate Response Before Parsing JSON
       if (!verificationResponse.ok) {
         console.error(`[Middleware Error] Verification API request failed. Status: ${verificationResponse.status}`);
+        console.error("[Middleware Error] Full response:", await verificationResponse.text());
         return NextResponse.redirect(new URL("/account-verification", request.url));
       }
 
+      // ✅ Now safe to parse JSON
       const verificationResult = await verificationResponse.json();
 
       // ✅ Fixed condition: Redirect if verification failed
