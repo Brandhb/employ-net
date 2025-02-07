@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   publicRuntimeConfig: {
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
+    baseURL: process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000",
     googleAnalyticsId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
     
   },
