@@ -26,7 +26,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       const clerkSecretKey = process.env.CLERK_SECRET_KEY;
       if (!clerkSecretKey) {
         console.error("[Middleware Error] Missing CLERK_SECRET_KEY.");
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
       }
 
       const clerkResponse = await fetch(`https://api.clerk.dev/v1/users/${userId}`, {
@@ -38,7 +38,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
       if (!clerkResponse.ok) {
         console.error(`[Middleware Error] Clerk API request failed. Status: ${clerkResponse.status}`);
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.json({ error: "Failed to fetch user details" }, { status: 500 });
       }
 
       const user = await clerkResponse.json();
@@ -54,13 +54,13 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       const userToken = await getToken();
       if (!userToken) {
         console.error("[Middleware Error] Missing Clerk session token.");
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.json({ error: "Authentication error" }, { status: 401 });
       }
 
       const verificationApiUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/users/verification-step`;
       if (!process.env.NEXT_PUBLIC_BASE_URL) {
         console.error("[Middleware Error] Missing NEXT_PUBLIC_BASE_URL.");
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
       }
 
       console.log("[Middleware] Calling Verification API:", verificationApiUrl);
@@ -69,14 +69,14 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${userToken}`, // 🔥 Added Authorization Header
+          Authorization: `Bearer ${userToken}`,
         },
         body: JSON.stringify({ userEmail, fromMiddleware: true, userId }),
       });
 
       if (!verificationResponse.ok) {
         console.error(`[Middleware Error] Verification API request failed. Status: ${verificationResponse.status}`);
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.json({ error: "Verification failed" }, { status: 500 });
       }
 
       const verificationResult = await verificationResponse.json();
@@ -86,7 +86,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       }
     } catch (error) {
       console.error("[Middleware Error] Unexpected error:", error);
-      return NextResponse.redirect(new URL("/error", request.url));
+      return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
   }
 

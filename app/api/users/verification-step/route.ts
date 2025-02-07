@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 export async function POST(request: Request) {
   try {
     const { fromMiddleware, userId: middlewareUserId, userEmail } = await request.json();
+
     console.log("Received Request:", { fromMiddleware, middlewareUserId, userEmail });
 
     // Get userId from Clerk auth() or fallback to middlewareUserId
