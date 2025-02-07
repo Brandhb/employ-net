@@ -40,7 +40,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       const clerkSecretKey = process.env.CLERK_SECRET_KEY;
       if (!clerkSecretKey) {
         console.error("[Middleware Error] Missing CLERK_SECRET_KEY.");
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.redirect(new URL("/", request.url)); // Redirect to home
       }
 
       // ✅ Add timeout to prevent infinite waits
@@ -56,7 +56,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
       if (!clerkResponse.ok) {
         console.error(`[Middleware Error] Clerk API request failed. Status: ${clerkResponse.status}`);
-        return NextResponse.redirect(new URL("/error", request.url));
+        return NextResponse.redirect(new URL("/", request.url)); // Redirect to home
       }
 
       const user = await clerkResponse.json();
@@ -86,7 +86,11 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       if (!verificationResponse.ok) {
         console.error(`[Middleware Error] Verification API request failed. Status: ${verificationResponse.status}`);
         console.error("[Middleware Error] Full response:", await verificationResponse.text());
-        return NextResponse.redirect(new URL("/account-verification", request.url));
+        
+        // 🔥 Redirect home & set a toast notification
+        const response = NextResponse.redirect(new URL("/", request.url));
+        response.headers.set("x-toast-message", "Verification failed. Please try again.");
+        return response;
       }
 
       // ✅ Now safe to parse JSON
@@ -99,7 +103,11 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       }
     } catch (error) {
       console.error("[Middleware Error] Unexpected error:", error);
-      return NextResponse.redirect(new URL("/error", request.url));
+      
+      // 🔥 Redirect home & set a toast notification
+      const response = NextResponse.redirect(new URL("/", request.url));
+      response.headers.set("x-toast-message", "An error occurred. Please try again.");
+      return response;
     }
   }
 
