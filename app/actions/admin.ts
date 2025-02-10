@@ -404,7 +404,6 @@ export interface AdminAnalytics {
 }
 
 export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
-  debugger;
   await requireAdminAuth();
 
   // Use Prisma transaction inside a function

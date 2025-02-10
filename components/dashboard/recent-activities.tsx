@@ -22,7 +22,6 @@ export function RecentActivities() {
     if (!userId) return;
 
     const fetchActivities = async () => {
-      debugger;
       const recentActivities = await getRecentActivities(userId);
     
       const transformedActivities = recentActivities?.map((log) => ({

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { currentUser } from "@clerk/nextjs/server";
+import { currentUser, } from "@clerk/nextjs/server";
 
 export async function getUserVerificationStep(employClerkUserId: string) {
   try {

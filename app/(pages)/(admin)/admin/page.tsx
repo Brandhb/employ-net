@@ -15,7 +15,6 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      debugger;
       try {
         const data = await getAdminDashboardStats();
         setStats(data);
