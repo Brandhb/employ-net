@@ -5,7 +5,7 @@ import { getClerkWebhookSecret } from "@/lib/clerk";
 import { WebhookEvent } from "@clerk/nextjs/server";
 
 export async function POST(req: Request) {
-  console.log("🔹 Webhook Triggered: Receiving Request...");
+  console.log("📩 Webhook Triggered: Receiving Request...");
 
   try {
     const WEBHOOK_SECRET = getClerkWebhookSecret();
@@ -28,9 +28,9 @@ export async function POST(req: Request) {
       return new Response("Error: Missing Svix Headers", { status: 400 });
     }
 
-    // Extract and log raw body before parsing
+    // Extract raw body
     const rawBody = await req.text();
-    console.log("🔹 Raw Webhook Body Received:", rawBody.slice(0, 500)); // Log first 500 chars for brevity
+    console.log("🔹 Raw Webhook Body Received:", rawBody.slice(0, 500)); // Log first 500 chars for debugging
 
     // Validate Webhook Signature
     const wh = new Webhook(WEBHOOK_SECRET);
@@ -48,14 +48,11 @@ export async function POST(req: Request) {
     }
 
     console.log("✅ Webhook Signature Verified");
-
-    // Extract event type
-    const eventType = evt.type;
-    console.log("🔹 Webhook Event Type:", eventType);
+    console.log("🔹 Webhook Event Type:", evt.type);
 
     // Process Event
     try {
-      console.log(`🚀 Processing Webhook Event: ${eventType}`);
+      console.log(`🚀 Processing Webhook Event: ${evt.type}`);
       await handleEvent(evt);
       console.log("✅ Webhook Successfully Processed");
       return new Response("Success", { status: 200 });
