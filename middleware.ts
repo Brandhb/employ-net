@@ -55,6 +55,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
         headers: { Authorization: `Bearer ${clerkSecretKey}` },
       });
 
+      // ✅ Ensure the response is JSON before parsing
       const contentType = clerkResponse.headers.get("content-type") || "";
       if (!clerkResponse.ok || !contentType.includes("application/json")) {
         console.error(`[Middleware Error] Clerk API response is not JSON. Status: ${clerkResponse.status}`);
@@ -85,7 +86,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
       if (!verificationResponse.ok || !verificationContentType.includes("application/json")) {
         console.error("[Middleware Error] Verification API response is not valid JSON. Status:", verificationResponse.status);
         console.error("[Middleware Error] Full response:", await verificationResponse.text());
-        
+
         const response = NextResponse.redirect(new URL("/", request.url));
         response.headers.set("x-toast-message", "Verification failed. Please try again.");
         return response;

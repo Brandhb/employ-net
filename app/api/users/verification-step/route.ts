@@ -15,8 +15,8 @@ export async function POST(request: Request) {
       middlewareUserId,
       userEmail,
     });
-    debugger;
-    // ✅ Fetch userId ONLY if it's from middleware, otherwise use request body
+
+    // ✅ Ensure userId exists
     let userId = middlewareUserId;
     if (!fromMiddleware) {
       const authUser = await auth();
