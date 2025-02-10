@@ -1,41 +1,94 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { clerkClient } from "@clerk/nextjs"; // ✅ Import Clerk Client
+import { clerkClient } from "@clerk/nextjs/server";
+import crypto from "crypto";
 
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId, redirectToSignIn } = await auth();
+// Function to verify Clerk webhook signature
+async function verifyClerkWebhook(req: Request) {
+  const signature = req.headers.get("Clerk-Signature");
+  const secret = process.env.CLERK_WEBHOOK_SECRET;
 
-  // Redirect if user is not signed in
-  if (!userId && isProtectedRoute(req)) {
-    return redirectToSignIn();
+  if (!signature || !secret) {
+    console.warn("❌ Missing signature or secret in webhook request");
+    return false;
   }
 
-  // Fetch user data to get publicMetadata
-  if (userId) {
-    try {
-      const user = await clerkClient.users.getUser(userId);
-      const userRole = user?.publicMetadata?.role;
+  try {
+    const textBody = await req.text();
+    const hmac = crypto.createHmac("sha256", secret);
+    hmac.update(textBody);
+    const expectedSignature = hmac.digest("hex");
 
-      // Restrict `/dashboard/*` access to only users with "admin" role
-      if (isProtectedRoute(req) && userRole !== "admin") {
+    if (signature === expectedSignature) {
+      console.log("✅ Clerk webhook signature verified");
+      return true;
+    } else {
+      console.warn("❌ Clerk webhook signature mismatch");
+      return false;
+    }
+  } catch (error) {
+    console.error("❌ Error verifying Clerk webhook:", error);
+    return false;
+  }
+}
+
+export default clerkMiddleware(async (auth, req) => {
+  console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
+
+  const { userId, redirectToSignIn } = await auth();
+  console.log(`🔑 Authenticated user ID: ${userId || "None"}`);
+
+  // ✅ Allow Clerk webhook routes but verify them
+  if (isWebhookRoute(req)) {
+    console.log("📩 Incoming webhook request...");
+    const isValidWebhook = await verifyClerkWebhook(req);
+    if (!isValidWebhook) {
+      console.warn("❌ Unauthorized Clerk webhook request");
+      return new NextResponse("Unauthorized Webhook Request", { status: 403 });
+    }
+    console.log("✅ Valid Clerk webhook request received");
+    return NextResponse.next();
+  }
+
+  // ✅ Protect /dashboard routes
+  if (isProtectedRoute(req)) {
+    console.log("🔒 Accessing protected route:", req.nextUrl.pathname);
+
+    if (!userId) {
+      console.warn("❌ User is not authenticated, redirecting to sign-in");
+      return redirectToSignIn();
+    }
+
+    // Fetch user metadata
+    try {
+      console.log(`📡 Fetching user metadata for user: ${userId}`);
+      const CC = await clerkClient();
+      const user = await CC.users.getUser(userId);
+      const userRole = user?.publicMetadata?.role;
+      console.log(`🎭 User role: ${userRole || "None"}`);
+
+      if (userRole !== "admin") {
+        console.warn("❌ User is not an admin, redirecting to /unauthorized");
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
+      console.log("✅ User is authorized to access this page");
     } catch (error) {
-      console.error("Error fetching user metadata:", error);
-      return NextResponse.redirect(new URL("/sign-in", req.url)); // Redirect to sign-in on error
+      console.error("❌ Error fetching user metadata:", error);
+      return NextResponse.redirect(new URL("/sign-in", req.url));
     }
   }
 
+  console.log("✅ Request allowed to proceed");
   return NextResponse.next();
 });
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
+    // Skip middleware for Clerk webhooks but verify them
+    "/((?!api/webhooks/clerk|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };
