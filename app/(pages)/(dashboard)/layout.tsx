@@ -109,8 +109,8 @@ export default function DashboardLayout({
                 <Image
                   src="/employ-net-logo.png"
                   alt="Logo"
-                  width={50}
-                  height={50}
+                  width={140}
+                  height={70}
                   className="rounded-full"
                 />
               </div>
