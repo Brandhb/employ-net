@@ -9,6 +9,10 @@ export async function POST(req: Request) {
 
   try {
     const WEBHOOK_SECRET = getClerkWebhookSecret();
+    if (!WEBHOOK_SECRET) {
+      console.error("❌ Webhook Secret Not Found");
+      return new Response("Error: Missing Webhook Secret", { status: 500 });
+    }
     console.log("🔹 Clerk Webhook Secret Retrieved");
 
     // Extract Headers
@@ -17,23 +21,23 @@ export async function POST(req: Request) {
     const svix_timestamp = headerPayload.get("svix-timestamp");
     const svix_signature = headerPayload.get("svix-signature");
 
-    console.log("🔹 Webhook Headers Received:", { svix_id, svix_timestamp });
+    console.log("🔹 Webhook Headers Received", { svix_id, svix_timestamp });
 
     if (!svix_id || !svix_timestamp || !svix_signature) {
       console.error("❌ Missing Svix Headers");
       return new Response("Error: Missing Svix Headers", { status: 400 });
     }
 
-    // Extract Body
-    const payload = await req.json();
-    console.log("🔹 Webhook Payload Received:", payload);
+    // Extract and log raw body before parsing
+    const rawBody = await req.text();
+    console.log("🔹 Raw Webhook Body Received:", rawBody.slice(0, 500)); // Log first 500 chars for brevity
 
     // Validate Webhook Signature
     const wh = new Webhook(WEBHOOK_SECRET);
     let evt: WebhookEvent;
 
     try {
-      evt = wh.verify(JSON.stringify(payload), {
+      evt = wh.verify(rawBody, {
         "svix-id": svix_id,
         "svix-timestamp": svix_timestamp,
         "svix-signature": svix_signature,
@@ -45,8 +49,13 @@ export async function POST(req: Request) {
 
     console.log("✅ Webhook Signature Verified");
 
+    // Extract event type
+    const eventType = evt.type;
+    console.log("🔹 Webhook Event Type:", eventType);
+
     // Process Event
     try {
+      console.log(`🚀 Processing Webhook Event: ${eventType}`);
       await handleEvent(evt);
       console.log("✅ Webhook Successfully Processed");
       return new Response("Success", { status: 200 });
