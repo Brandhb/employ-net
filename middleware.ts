@@ -1,38 +1,35 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { clerkClient } from "@clerk/nextjs"; // ✅ Import Clerk Client
 
-// Define the expected structure for publicMetadata
-interface PublicMetadata {
-  role?: string;
-}
-
-interface SessionClaims {
-  publicMetadata?: PublicMetadata;
-}
-
-const isProtectedRoute = createRouteMatcher([
-  "/dashboard(.*)",
-]);
-
-const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
+const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  //debugger;
-  // Protect normal protected routes
-  if (isProtectedRoute(req)) await auth.protect();
+  const { userId, redirectToSignIn } = await auth();
 
-  // Type casting sessionClaims to ensure we handle potential undefined values
-  const { sessionClaims } = await auth();
-
-  // Safely check if publicMetadata exists and contains the 'role' field
-  const userRole = sessionClaims?.metadata?.role;
-
-  if (isAdminRoute(req) && userRole !== "admin") {
-    const url = new URL("/", req.url);
-    return NextResponse.redirect(url);
+  // Redirect if user is not signed in
+  if (!userId && isProtectedRoute(req)) {
+    return redirectToSignIn();
   }
-});
 
+  // Fetch user data to get publicMetadata
+  if (userId) {
+    try {
+      const user = await clerkClient.users.getUser(userId);
+      const userRole = user?.publicMetadata?.role;
+
+      // Restrict `/dashboard/*` access to only users with "admin" role
+      if (isProtectedRoute(req) && userRole !== "admin") {
+        return NextResponse.redirect(new URL("/unauthorized", req.url));
+      }
+    } catch (error) {
+      console.error("Error fetching user metadata:", error);
+      return NextResponse.redirect(new URL("/sign-in", req.url)); // Redirect to sign-in on error
+    }
+  }
+
+  return NextResponse.next();
+});
 
 export const config = {
   matcher: [
