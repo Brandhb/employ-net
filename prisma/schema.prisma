@@ -1,15 +1,18 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "data-proxy"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  directUrl    = env("DATABASE_DIRECT_URL")
+  relationMode = "prisma"
 }
 
 model User {
   id                           String                @id @default(uuid()) @db.Uuid
-  clerkUserId                  String                @unique @default(uuid())
+  clerkUserId                  String                @unique
   name                         String?
   email                        String?               @unique
   createdAt                    DateTime              @default(now()) @map("created_at")
@@ -20,19 +23,10 @@ model User {
   points_balance               Int?                  @default(0)
   full_name                    String?
   verification_status          String?               @default("pending")
-  employClerkUserId            String?               @unique @default(uuid())
+  employClerkUserId            String?               @unique
   notificationPreferences      Json?                 @default("{\"dailySummary\": true, \"urgentAlerts\": true}")
   adminNotificationPreferences Json?                 @default("{\"systemAlerts\": true, \"payoutNotifications\": true, \"verificationNotifications\": true}")
-  activities                   Activity[]
-  activityLogs                 ActivityLog[]
-  adInteractions               AdInteraction[]
-  bankAccounts                 BankAccount[]
   documents                    Document[]
-  employ_payout_requests       PayoutRequest[]
-  employ_rewards               Reward[]
-  notifications                Notification[]
-  processedPayouts             Payout[]              @relation("ProcessedBy")
-  payouts                      Payout[]
   verificationSessions         VerificationSession[]
 
   @@index([clerkUserId])
@@ -48,7 +42,7 @@ model Document {
   createdAt    DateTime @default(now())
   publicId     String
   temp_id      String?  @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "documents_user_id_fkey")
+  user         User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("documents")
@@ -61,118 +55,109 @@ model VerificationSession {
   status       String
   reason       String?
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
   temp_user_id String?  @db.Uuid
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "verification_sessions_user_id_fkey")
+  user         User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@map("verification_sessions")
 }
 
-model Activity {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String        @map("user_id") @db.Uuid
-  type        String
-  title       String
-  description String?
-  points      Int           @default(0)
-  status      String        @default("pending")
-  completedAt DateTime?     @map("completed_at") @db.Timestamp(6)
-  createdAt   DateTime?     @default(now()) @map("created_at") @db.Timestamp(6)
-  metadata    Json?
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  logs        ActivityLog[]
+model activities {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @db.Uuid
+  type         String
+  title        String
+  description  String?
+  points       Int       @default(0)
+  status       String    @default("pending")
+  completed_at DateTime? @db.Timestamp(6)
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  metadata     Json?
 
-  @@map("activities")
+  @@index([user_id], map: "idx_activities_user_id")
 }
 
-model Payout {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  amount      Int
-  status      String?   @default("pending")
-  processedBy String?   @map("processed_by") @db.Uuid
-  processedAt DateTime? @map("processed_at") @db.Timestamp(6)
-  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  notes       String?
-  processor   User?     @relation("ProcessedBy", fields: [processedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@map("payouts")
-}
-
-model ActivityLog {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  activityId String?   @map("activity_id") @db.Uuid
-  action     String
-  metadata   Json?     @default("{}")
-  createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  activity   Activity? @relation(fields: [activityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@map("activity_logs")
-}
-
-model AdInteraction {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String    @map("user_id") @db.Uuid
-  adId            String    @map("ad_id")
-  interactionType String    @map("interaction_type")
-  duration        Int?
-  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@map("ad_interactions")
-}
-
-model Notification {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  title     String
-  message   String
-  type      String
-  read      Boolean?  @default(false)
-  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@map("notifications")
-}
-
-model Reward {
+model activity_logs {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id     String    @db.Uuid
-  points      Int
-  description String?
-  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  users       User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  activity_id String?   @db.Uuid
+  action      String
+  metadata    Json?     @default("{}")
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
 
-  @@map("employ_rewards")
+  @@index([activity_id], map: "idx_activity_logs_activity_id")
+  @@index([user_id], map: "idx_activity_logs_user_id")
 }
 
-model PayoutRequest {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id   String    @db.Uuid
-  amount    Int
-  status    String?   @default("pending")
-  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
-  users     User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+model ad_interactions {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String    @db.Uuid
+  ad_id            String
+  interaction_type String
+  duration         Int?
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
 
-  @@map("employ_payout_requests")
+  @@index([user_id], map: "idx_ad_interactions_user_id")
 }
 
-model BankAccount {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
+model bank_accounts {
+  id                String   @id @db.Uuid
+  user_id           String   @db.Uuid
   bankName          String
   accountNumber     String
   routingNumber     String
   accountType       String
   accountHolderName String
   verified          Boolean  @default(false)
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  user              User     @relation(fields: [userId], references: [id])
+  created_at        DateTime @default(now())
+  updated_at        DateTime
 
-  @@map("bank_accounts")
+  @@index([user_id], map: "idx_bank_accounts_user_id")
+}
+
+model employ_payout_requests {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  amount     Int
+  status     String?   @default("pending")
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([user_id], map: "idx_employ_payout_requests_user_id")
+}
+
+model employ_rewards {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  points      Int
+  description String?
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([user_id], map: "idx_employ_rewards_user_id")
+}
+
+model notifications {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String    @db.Uuid
+  title      String
+  message    String
+  type       String
+  read       Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([user_id], map: "idx_notifications_user_id")
+}
+
+model payouts {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @db.Uuid
+  amount       Int
+  status       String?   @default("pending")
+  processed_by String?   @db.Uuid
+  processed_at DateTime? @db.Timestamp(6)
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+  notes        String?
+
+  @@index([processed_by], map: "idx_payouts_processed_by")
+  @@index([user_id], map: "idx_payouts_user_id")
 }
