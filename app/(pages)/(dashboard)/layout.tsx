@@ -46,7 +46,6 @@ export default function DashboardLayout({
         console.error("Error checking verification status:", error);
       }
     };
-
     if (user) {
       checkVerification();
     }
@@ -105,14 +104,23 @@ export default function DashboardLayout({
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10 h-full">
             <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-              <div className="p-4">
+              <div className="p-0">
+                { open ? 
                 <Image
                   src="/employ-net-logo.png"
                   alt="Logo"
                   width={140}
                   height={70}
                   className="rounded-full"
-                />
+                />  :
+                   <Image
+                  src="/favicon.png"
+                  alt="Logo"
+                  width={25}
+                  height={25}
+                  className="rounded-full"
+                /> 
+              }
               </div>
               <div className="mt-8 flex flex-col gap-2">
                 {items.map((item, idx) => (

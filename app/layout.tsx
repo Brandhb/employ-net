@@ -10,6 +10,25 @@ export const metadata = {
   title: 'Employ-Net',
   description: 'Your gateway to digital employment opportunities',
   metadataBase: new URL('https://employ-net.com'),
+  icons: [
+    {
+      rel: 'icon',
+      type: 'image/ico',
+      sizes: '32x32',
+      url: '/favicons/favicon.ico',
+    },
+    {
+      rel: 'icon',
+      type: 'image/png',
+      sizes: '16x16',
+      url: '/favicons/favicon-16x16.png',
+    },
+    {
+      rel: 'apple-touch-icon',
+      sizes: '180x180',
+      url: '/favicons/apple-touch-icon.png',
+    },
+  ],
 };
 
 export default function RootLayout({
