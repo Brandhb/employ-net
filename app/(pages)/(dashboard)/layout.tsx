@@ -114,7 +114,7 @@ export default function DashboardLayout({
                   className="rounded-full"
                 />  :
                    <Image
-                  src="/favicon.png"
+                  src="/favicons/favicon.png"
                   alt="Logo"
                   width={25}
                   height={25}
