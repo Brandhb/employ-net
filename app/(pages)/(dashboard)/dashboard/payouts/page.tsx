@@ -12,8 +12,6 @@ import {
 import { DollarSign, ArrowUpRight } from "lucide-react";
 import { getPayoutStats, getPayoutHistory } from "@/app/actions/payouts";
 import { RequestPayoutButton } from "@/components/dashboard/request-payout-button";
-import { Key } from "react";
-import { Payout } from "@/types";
 
 export default async function PayoutsPage() {
   const { userId } = await auth();
@@ -73,7 +71,7 @@ export default async function PayoutsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payoutHistory.map((payout: Payout) => (
+              {payoutHistory.map((payout) => (
                 <TableRow key={payout.id}>
                   <TableCell>
                     {new Date(payout.createdAt || "").toLocaleDateString()}
