@@ -52,7 +52,7 @@ export default function SignInPage() {
                   header: "hidden",
                   footer: "hidden",
                   socialButtonsBlockButton:
-                    "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md hover:scale-105 transition-transform rounded-lg h-12 flex items-center justify-center px-4",
+                    "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md hover:scale-105 transition-transform rounded-lg h-10 flex items-center justify-center px-4",
                   dividerRow: "flex items-center justify-center my-4",
                   dividerText: "text-gray-400 text-sm mx-2",
                   formFieldLabel:
@@ -60,7 +60,7 @@ export default function SignInPage() {
                   formFieldInput:
                     "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-2 focus:ring-primary/50 rounded-lg h-12 px-4 w-full",
                   formButtonPrimary:
-                    "bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg h-12 flex items-center justify-center transition-transform hover:scale-105",
+                    "bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg h-8 flex items-center justify-center transition-transform hover:scale-105",
                 },
               }}
             />

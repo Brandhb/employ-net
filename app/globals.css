@@ -119,8 +119,16 @@ body {
 
 .cl-cardBox, .cl-signIn-start {
   width: 100%;
-  max-width: 450px; /* Ensures it doesn't get too wide on large screens */
+  max-width: 350px; /* Ensures it doesn't get too wide on large screens */
   min-width: 280px; /* Prevents it from being too small on mobile */
+}
+
+/* Ensure alignment for all screen sizes */
+.cl-signIn-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Adjust layout on smaller screens */
@@ -131,10 +139,10 @@ body {
   }
 }
 
-/* Ensure alignment for all screen sizes */
-.cl-signIn-start {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+
+
+.cl-main, .cl-internal{
+  width: 100%;
+  max-width: 300px;
+  gap: 5px;
 }
