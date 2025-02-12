@@ -1,6 +1,6 @@
 generator client {
   provider   = "prisma-client-js"
-  engineType = "data-proxy"
+  engineType = "data-proxy" // ✅ Required for Netlify serverless environments
 }
 
 datasource db {
@@ -87,6 +87,7 @@ model Activity {
   logs        ActivityLog[]
 
   @@map("activities")
+  @@index([userId])
 }
 
 model Payout {
@@ -102,6 +103,8 @@ model Payout {
   user        User      @relation(fields: [userId], references: [id])
 
   @@map("payouts")
+  @@index([processedBy])
+  @@index([userId])
 }
 
 model ActivityLog {
@@ -115,6 +118,8 @@ model ActivityLog {
   user       User      @relation(fields: [userId], references: [id])
 
   @@map("activity_logs")
+  @@index([activityId])
+  @@index([userId])
 }
 
 model AdInteraction {
@@ -127,6 +132,7 @@ model AdInteraction {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("ad_interactions")
+  @@index([userId])
 }
 
 model Notification {
@@ -140,6 +146,7 @@ model Notification {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+  @@index([userId])
 }
 
 model Reward {
@@ -151,6 +158,7 @@ model Reward {
   users       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("employ_rewards")
+  @@index([user_id])
 }
 
 model PayoutRequest {
@@ -162,6 +170,7 @@ model PayoutRequest {
   users     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("employ_payout_requests")
+  @@index([user_id])
 }
 
 model BankAccount {
