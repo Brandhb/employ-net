@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     // TODO: Verify Typeform webhook signature
     // const isValidSignature = verifyTypeformSignature(signature, body);
     // if (!isValidSignature) {
-    //   return new NextResponse("Invalid signature", { status: 401 });
+    //   return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     // }
 
     const { form_response } = body;
@@ -21,25 +21,25 @@ export async function POST(request: Request) {
 
     console.log("📌 Checking Activity for formId:", formId);
 
-    // Ensure `prisma.activity` exists
+    // ✅ Ensure `prisma.activity` exists
     const activity = await prisma.activity.findFirst({
       where: {
         type: "survey",
         metadata: {
           path: ["form_id"],
-          equals: formId
-        }
+          equals: formId,
+        },
       },
     });
 
     if (!activity) {
       console.error("⚠️ Activity not found for formId:", formId);
-      return new NextResponse("Activity not found", { status: 404 });
+      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
 
     console.log("✅ Activity found:", activity.id);
 
-    // Record the survey completion in a transaction
+    // ✅ Record the survey completion in a transaction
     await prisma.$transaction([
       prisma.activity.update({
         where: { id: activity.id },
@@ -57,8 +57,8 @@ export async function POST(request: Request) {
         where: { id: activity.userId },
         data: {
           points_balance: {
-            increment: activity.points
-          }
+            increment: activity.points,
+          },
         },
       }),
       prisma.activityLog.create({
@@ -79,6 +79,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Error processing Typeform webhook:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

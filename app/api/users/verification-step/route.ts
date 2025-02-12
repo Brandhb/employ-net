@@ -1,19 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getUserVerificationStep } from "@/app/actions/user-actions";
 import { auth } from "@clerk/nextjs/server";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // ✅ Parse request body
     const body = await request.json();
+    if (!body) {
+      console.error("⛔ Invalid request - Missing request body");
+      return NextResponse.json({ error: "Missing request body" }, { status: 400 });
+    }
 
     console.log("📌 Received Request:", body);
 
     const { fromMiddleware, userId: middlewareUserId, userEmail } = body;
 
-    // ✅ Ensure userId exists
+    // ✅ Ensure `userId` exists
     let userId = middlewareUserId;
     if (!fromMiddleware) {
-      const authUser = await auth(); // **Fix: Ensure auth() is not awaited incorrectly**
+      const authUser = await auth(); // ✅ No need to `await` auth()
       userId = authUser?.userId;
     }
 
@@ -27,6 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing userEmail" }, { status: 400 });
     }
 
+    // ✅ Fetch verification step safely
     let verificationStep;
     try {
       verificationStep = (await getUserVerificationStep(userId)) || 0;

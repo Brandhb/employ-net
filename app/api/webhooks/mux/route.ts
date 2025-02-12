@@ -17,6 +17,11 @@ export async function POST(request: NextRequest) {
     //   return NextResponse.json({ success: false, message: "Invalid signature" }, { status: 401 });
     // }
 
+    if (!body?.type || !body?.data) {
+      console.error("❌ Invalid webhook structure:", body);
+      return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
+    }
+
     switch (body.type) {
       case "video.asset.ready": {
         console.log("✅ Video asset is ready, updating activity...");
@@ -50,7 +55,7 @@ export async function POST(request: NextRequest) {
         });
 
         console.log("✅ Activity updated successfully:", activity.id);
-        break;
+        return NextResponse.json({ success: true });
       }
 
       case "video.asset.errored": {
@@ -82,7 +87,7 @@ export async function POST(request: NextRequest) {
         });
 
         console.log("✅ Activity marked as 'error':", activity.id);
-        break;
+        return NextResponse.json({ success: true });
       }
 
       default: {
@@ -90,8 +95,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, message: "Unhandled webhook type" }, { status: 400 });
       }
     }
-
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Webhook Processing Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

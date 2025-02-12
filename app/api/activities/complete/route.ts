@@ -5,37 +5,44 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId } = await auth(); // ✅ Call `auth()` inside the function
+    const { userId } = await auth();
 
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      console.error("⛔ Unauthorized request - Missing userId");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log("🔹 User ID:", userId);
-    console.log("🔹 Incoming Activity ID:", body.activityId);
+    console.log("🔹 Authenticated user:", userId);
+    console.log("📌 Activity ID from request:", body.activityId);
 
+    // ✅ Find internal user ID via Clerk user ID
     const user = await prisma.user.findUnique({
       where: { employClerkUserId: userId },
+      select: { id: true, points_balance: true }, // Fetch only necessary fields
     });
 
     if (!user) {
       console.error("❌ User not found:", userId);
-      return new NextResponse('User not found', { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    console.log("✅ Internal user found:", user.id);
+
+    // ✅ Fetch activity with required fields
     const activity = await prisma.activity.findUnique({
       where: { id: body.activityId },
+      select: { id: true, title: true, points: true, type: true },
     });
 
     if (!activity) {
       console.error("❌ Activity not found:", body.activityId);
-      return new NextResponse('Activity not found', { status: 404 });
+      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
 
     console.log("✅ Activity found:", activity.title);
 
-    // ✅ Update activity status and user points in a transaction
-    const result = await prisma.$transaction([
+    // ✅ Use Prisma transaction for atomic updates
+    const [updatedActivity, updatedUser, newLog, newNotification] = await prisma.$transaction([
       prisma.activity.update({
         where: { id: body.activityId },
         data: {
@@ -46,15 +53,13 @@ export async function POST(request: NextRequest) {
       prisma.user.update({
         where: { id: user.id },
         data: {
-          points_balance: {
-            increment: activity.points,
-          },
+          points_balance: { increment: activity.points },
         },
       }),
       prisma.activityLog.create({
         data: {
           userId: user.id,
-          activityId: body.activityId,
+          activityId: activity.id,
           action: 'completed',
           metadata: {
             points: activity.points,
@@ -66,16 +71,24 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.id,
           title: 'Activity Completed',
-          message: `You earned ${activity.points} points for completing ${activity.title}!`,
+          message: `🎉 You earned ${activity.points} points for completing "${activity.title}"!`,
           type: 'success',
         },
       }),
     ]);
 
-    console.log("✅ Activity completion recorded:", result);
-    return NextResponse.json(result);
+    console.log("✅ Activity completion recorded successfully!");
+
+    return NextResponse.json({
+      success: true,
+      activity: updatedActivity,
+      user: { id: updatedUser.id, points_balance: updatedUser.points_balance },
+      log: newLog,
+      notification: newNotification,
+    });
+
   } catch (error) {
     console.error("❌ Error completing activity:", error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
