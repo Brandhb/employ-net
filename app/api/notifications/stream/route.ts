@@ -1,15 +1,13 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { auth } from '@clerk/nextjs/server';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET() {
- 
-
   try {
     const { userId: employClerkUserId } = await auth();
 
     if (!employClerkUserId) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return new NextResponse("Unauthorized", { status: 401 });
     }
     // Fetch the internal `userId` using the Clerk's `employClerkUserId`
     const user = await prisma.user.findUnique({
@@ -18,21 +16,21 @@ export async function GET() {
     });
 
     if (!user) {
-      return new NextResponse('User not found', { status: 404 });
+      return new NextResponse("User not found", { status: 404 });
     }
 
     const internalUserId = user.id; // This will be used to query notifications
 
     const headers = {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
     };
 
     const stream = new ReadableStream({
       start(controller) {
         const interval = setInterval(async () => {
-          console.log('Fetching notifications for userId:', internalUserId);
+          console.log("Fetching notifications for userId:", internalUserId);
 
           try {
             const notifications = await prisma.notification.findMany({
@@ -41,7 +39,7 @@ export async function GET() {
                 read: false,
               },
               orderBy: {
-                createdAt: 'desc',
+                createdAt: "desc",
               },
             });
 
@@ -50,7 +48,7 @@ export async function GET() {
               controller.enqueue(new TextEncoder().encode(data));
             }
           } catch (error) {
-            console.error('Error fetching notifications:', error);
+            console.error("Error fetching notifications:", error);
             controller.close();
           }
         }, 5000);
@@ -63,7 +61,7 @@ export async function GET() {
 
     return new NextResponse(stream, { headers });
   } catch (error) {
-    console.error('Error processing notifications stream:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error("Error processing notifications stream:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
