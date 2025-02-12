@@ -13,13 +13,8 @@ import {
 import { getAdminAnalytics } from "@/app/actions/admin";
 import { useToast } from "@/hooks/use-toast";
 import { Prisma } from "@prisma/client";
+import { ActivityGroupByOutput } from "@/app/lib/types/analytics"; // ✅ Now imported from a safe place
 
-type ActivityGroupByOutput = Prisma.ActivityGroupByOutputType & {
-  _count: number;
-  _sum: {
-    points: number | null;
-  };
-};
 
 interface ChartDataPoint {
   name: string;
