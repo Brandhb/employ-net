@@ -4,10 +4,11 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useId } from "react";
+
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -24,20 +25,33 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { createActivity } from "@/app/actions/admin";
+import { CreateActivityData } from "@/app/actions/admin";
 
+// ✅ Schema with `status`
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   type: z.enum(["video", "survey"]),
+  status: z.enum(["active", "draft"]).default("draft"),
   points: z.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
-  metadata: z.object({
-    playbackId: z.string().optional(),
-    formId: z.string().optional()
-  }).optional()
+  metadata: z
+    .object({
+      playbackId: z.string().optional(),
+      formId: z.string().optional(),
+    })
+    .optional(),
 });
 
-export function CreateActivityForm() {
+// ✅ Response Type (Ensures we handle errors properly)
+interface CreateActivityResponse {
+  success: boolean;
+  error?: string; // ✅ Allow error handling
+}
+
+
+
+// ✅ Component
+export function CreateActivityForm({ onSubmit }: any) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -46,35 +60,41 @@ export function CreateActivityForm() {
     defaultValues: {
       title: "",
       type: "video",
+      status: "draft",
       points: 100,
       description: "",
-      metadata: {}
+      metadata: {},
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  // ✅ Submitting form
+  async function handleSubmit(values: CreateActivityData) {
     setIsLoading(true);
     try {
-      await createActivity(values);
-      toast({
-        title: "Success",
-        description: "Activity created successfully",
-      });
+      const response = await onSubmit(values);
+  
+      if (!response.success) {
+        throw new Error(response.error || "Activity creation failed");
+      }
+  
+      toast({ title: "Success", description: "Activity created successfully" });
       form.reset();
     } catch (error) {
       toast({
         title: "Error",
-        description: JSON.stringify(error) || "Failed to create activity",
+        description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   }
+  
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* Title */}
         <FormField
           control={form.control}
           name="title"
@@ -89,16 +109,14 @@ export function CreateActivityForm() {
           )}
         />
 
+        {/* Type */}
         <FormField
           control={form.control}
           name="type"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Type</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-              >
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select activity type" />
@@ -114,6 +132,30 @@ export function CreateActivityForm() {
           )}
         />
 
+        {/* Status */}
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Points */}
         <FormField
           control={form.control}
           name="points"
@@ -123,19 +165,17 @@ export function CreateActivityForm() {
               <FormControl>
                 <Input
                   type="number"
-                  placeholder="Enter points value"
-                  {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  placeholder="Enter points"
+                  value={field.value}
+                  onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
                 />
               </FormControl>
-              <FormDescription>
-                Points awarded for completing this activity
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
 
+        {/* Description */}
         <FormField
           control={form.control}
           name="description"
@@ -143,16 +183,14 @@ export function CreateActivityForm() {
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
-                <Textarea
-                  placeholder="Enter activity description"
-                  {...field}
-                />
+                <Textarea placeholder="Enter activity description" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
+        {/* Video Playback ID (for Video type) */}
         {form.watch("type") === "video" && (
           <FormField
             control={form.control}
@@ -169,6 +207,7 @@ export function CreateActivityForm() {
           />
         )}
 
+        {/* Typeform ID (for Survey type) */}
         {form.watch("type") === "survey" && (
           <FormField
             control={form.control}
@@ -185,6 +224,7 @@ export function CreateActivityForm() {
           />
         )}
 
+        {/* Submit Button */}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Creating..." : "Create Activity"}
         </Button>

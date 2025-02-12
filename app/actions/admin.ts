@@ -1,8 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Activity, ActivityData } from "@/types";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
 interface NotificationPreferences {
   dailySummary: boolean;
@@ -203,22 +205,22 @@ export async function getAdminDashboardStats() {
   ] = await prisma.$transaction([
     // ✅ Ensure we count only users with employClerkUserId
     prisma.user.count({
-      where: { employClerkUserId: { not: null } }
+      where: { employClerkUserId: { not: null } },
     }),
 
     // ✅ Ensure activities belong to employed users
     prisma.activity.count({
-      where: { 
+      where: {
         status: "active",
-        user: { employClerkUserId: { not: null } } 
+        user: { employClerkUserId: { not: null } },
       },
     }),
 
     // ✅ Ensure payouts belong to employed users
     prisma.payout.count({
-      where: { 
+      where: {
         status: "pending",
-        user: { employClerkUserId: { not: null } }
+        user: { employClerkUserId: { not: null } },
       },
     }),
 
@@ -300,7 +302,6 @@ export async function getAdminDashboardStats() {
   };
 }
 
-
 export async function getAdminNotifications() {
   await requireAdminAuth(); // 👈 Replacing redundant checks
 
@@ -337,20 +338,20 @@ export async function getAdminSettings() {
     notificationPreferences: (typeof user?.notificationPreferences === "string"
       ? JSON.parse(user.notificationPreferences)
       : user?.notificationPreferences) || {
-        dailySummary: true,
-        urgentAlerts: true,
-      },
+      dailySummary: true,
+      urgentAlerts: true,
+    },
 
-    adminNotificationPreferences: (typeof user?.adminNotificationPreferences === "string"
+    adminNotificationPreferences: (typeof user?.adminNotificationPreferences ===
+    "string"
       ? JSON.parse(user.adminNotificationPreferences)
       : user?.adminNotificationPreferences) || {
-        payoutNotifications: true,
-        verificationNotifications: true,
-        systemAlerts: true,
-      },
+      payoutNotifications: true,
+      verificationNotifications: true,
+      systemAlerts: true,
+    },
   };
 }
-
 
 export async function updateAdminSettings(settings: {
   notificationPreferences?: NotificationPreferences;
@@ -637,36 +638,83 @@ export async function processPayoutRequest(
   return { success: true };
 }
 
-export async function createActivity(data: {
+export interface CreateActivityData {
   title: string;
-  type: string;
+  type: "video" | "survey"; // ✅ Ensures correct type
+  status: "active" | "draft"; // ✅ Ensures correct type
   points: number;
+  metadata?: Record<string, any>;
   description?: string;
-  metadata?: any;
-}) {
-  const { userId } = await auth();
-  await requireAdminAuth();
+}
 
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
 
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
+
+// Define the return type
+export type CreateActivityResponse = {
+  success: boolean;
+  error?: string;
+  activity?: Activity
+};
+
+// ✅ Memoize getActivities function with cache()
+export const getActivities = cache(async (): Promise<ActivityData[]> => {
+  try {
+    console.log("🗂 Fetching activities from database...");
+    const activities = await prisma.activity.findMany({
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        status: true,
+        points: true,
+        createdAt: true,
+        completedAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return activities.map((activity) => ({
+      id: activity.id,
+      title: activity.title,
+      type: activity.type as "video" | "survey",
+      status: activity.status as "active" | "draft",
+      points: activity.points,
+      createdAt: activity.createdAt ? activity.createdAt.toISOString() : "",
+      completedAt: activity.completedAt ? activity.completedAt.toISOString() : null,
+    }));
+  } catch (error) {
+    console.error("❌ getActivities: Error fetching activities:", error);
+    return [];
   }
+});
 
-  const activity = await prisma.activity.create({
-    data: {
-      ...data,
-      userId: user.id,
-      status: "active",
-    },
-  });
+export async function createActivity(data: CreateActivityData): Promise<CreateActivityResponse> {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "Unauthorized" };
 
-  revalidatePath("/admin/activities");
-  revalidatePath("/dashboard/activities");
+    // Check if user exists in Prisma
+    const internalUser = await prisma.user.findUnique({
+      where: { employClerkUserId: userId },
+    });
 
-  return activity;
+    if (!internalUser) {
+      console.error("❌ No internal user found for Clerk ID:", userId);
+      return { success: false, error: "User not found in database" };
+    }
+
+    await prisma.activity.create({
+      data: { ...data, userId: internalUser.id },
+    });
+
+    // ✅ Revalidate the cached activities list
+    revalidatePath("/admin/activities");
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ createActivity: Error creating activity:", error);
+    return { success: false, error: "Failed to create activity" };
+  }
 }
 
 export async function updateActivityStatus(activityId: string, status: string) {

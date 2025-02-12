@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,64 +24,98 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Search, MoreVertical, Plus, Video, FileText } from "lucide-react";
 import { CreateActivityForm } from "@/components/admin/create-activity-form";
 import { useToast } from "@/hooks/use-toast";
+import {
+  createActivity,
+  deleteActivity,
+  getActivities,
+  updateActivityStatus,
+  CreateActivityResponse,
+  CreateActivityData,
+} from "@/app/actions/admin";
+import { revalidatePath } from "next/cache";
+import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 
 export default function ActivitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [activities, setActivities] = useState<ActivityData[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
 
-  const activities = [
-    {
-      id: "1",
-      title: "Introduction to Digital Marketing",
-      type: "video",
-      points: 100,
-      status: "active",
-      completions: 45,
-      createdAt: "2024-03-01",
-    },
-    {
-      id: "2",
-      title: "User Experience Survey",
-      type: "survey",
-      points: 50,
-      status: "draft",
-      completions: 0,
-      createdAt: "2024-03-10",
-    },
-  ];
+  // ✅ Fetch activities from the database on mount
+  useEffect(() => {
+    async function fetchActivities() {
+      const data = await getActivities();
+      setActivities(data);
+    }
+    fetchActivities();
+  }, []);
 
+  // ✅ Filter activities based on search input
   const filteredActivities = activities.filter((activity) =>
     activity.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleViewDetails = (id: string) => {
-    // Implement view details functionality
-    toast({
-      title: "Viewing Details",
-      description: `Viewing details for activity ${id}`,
-    });
+  // ✅ Handle activity creation
+  const handleCreateActivity = async (newActivity: Omit<Activity, "id" | "createdAt">) => {
+    try {
+      const formattedActivity: CreateActivityData = {
+        ...newActivity,
+        type: newActivity.type as "video" | "survey", // ✅ Explicitly cast `type`
+        status: newActivity.status as "active" | "draft", // ✅ Explicitly cast `status`
+      };
+  
+      const result = await createActivity(formattedActivity);
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to create activity");
+      }
+
+      toast({ title: "Success", description: "Activity created successfully!" });
+
+      revalidatePath("/admin/activities"); // ✅ Refresh cache
+      setActivities(await getActivities()); // ✅ Fetch updated data
+
+      setIsModalOpen(false); // ✅ Close modal after success
+      return { success: true };
+    } catch (error) {
+      console.error("❌ Error creating activity:", error);
+
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
   };
 
-  const handleEditActivity = (id: string) => {
-    // Implement edit functionality
-    toast({
-      title: "Editing Activity",
-      description: `Editing activity ${id}`,
-    });
+  // ✅ Handle activity status update
+  const handleEditActivity = async (id: string, status: "active" | "draft") => {
+    try {
+      await updateActivityStatus(id, status);
+      setActivities((prev) =>
+        prev.map((activity) => (activity.id === id ? { ...activity, status } : activity))
+      );
+      toast({ title: "Success", description: "Activity status updated" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+    }
   };
 
-  const handleDeleteActivity = (id: string) => {
-    // Implement delete functionality
-    toast({
-      title: "Deleting Activity",
-      description: `Are you sure you want to delete activity ${id}?`,
-      variant: "destructive",
-    });
+  // ✅ Handle activity deletion
+  const handleDeleteActivity = async (id: string) => {
+    try {
+      await deleteActivity(id);
+      setActivities((prev) => prev.filter((activity) => activity.id !== id));
+      toast({ title: "Success", description: "Activity deleted successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete activity", variant: "destructive" });
+    }
   };
 
   return (
@@ -98,13 +132,11 @@ export default function ActivitiesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Task
-              </Button>
-            </DialogTrigger>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Task
+            </Button>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Create New Task</DialogTitle>
@@ -112,7 +144,7 @@ export default function ActivitiesPage() {
                   Create a new video or survey task for users to complete.
                 </DialogDescription>
               </DialogHeader>
-              <CreateActivityForm />
+              <CreateActivityForm onSubmit={handleCreateActivity} />
             </DialogContent>
           </Dialog>
         </div>
@@ -130,7 +162,7 @@ export default function ActivitiesPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>Points</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Completions</TableHead>
+                <TableHead>Completed At</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -161,8 +193,8 @@ export default function ActivitiesPage() {
                       {activity.status}
                     </span>
                   </TableCell>
-                  <TableCell>{activity.completions}</TableCell>
-                  <TableCell>{activity.createdAt}</TableCell>
+                  <TableCell>{activity.completedAt ? new Date(activity.completedAt).toLocaleDateString() : "Not Completed"}</TableCell>
+                  <TableCell>{activity.createdAt ? new Date(activity.createdAt).toLocaleDateString() : "N/A"}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -171,16 +203,10 @@ export default function ActivitiesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetails(activity.id)}>
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditActivity(activity.id)}>
+                        <DropdownMenuItem onClick={() => handleEditActivity(activity.id, activity.status as "active" | "draft")}>
                           Edit Task
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => handleDeleteActivity(activity.id)}
-                          className="text-red-600"
-                        >
+                        <DropdownMenuItem onClick={() => handleDeleteActivity(activity.id)} className="text-red-600">
                           Delete Task
                         </DropdownMenuItem>
                       </DropdownMenuContent>

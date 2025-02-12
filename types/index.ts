@@ -48,6 +48,16 @@ export interface VerificationSession {
   user: User; // Related user
 }
 
+export interface ActivityData {
+  id: string;
+  title: string;
+  type: "video" | "survey";
+  status: "active" | "draft";
+  points: number;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export interface Activity {
   id: string; // UUID
   userId: string; // User UUID
