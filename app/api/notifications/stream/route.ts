@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@clerk/nextjs/server';
 
 export async function GET() {
-  const { userId: employClerkUserId } = await auth();
-
-  if (!employClerkUserId) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
+ 
 
   try {
+    const { userId: employClerkUserId } = await auth();
+
+    if (!employClerkUserId) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
     // Fetch the internal `userId` using the Clerk's `employClerkUserId`
     const user = await prisma.user.findUnique({
       where: { employClerkUserId },
