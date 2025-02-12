@@ -1,3 +1,4 @@
+'use server'
 import { prisma } from "@/lib/prisma";
 import { formatName } from "@/lib/utils";
 import { WebhookEvent } from "@clerk/nextjs/server";
