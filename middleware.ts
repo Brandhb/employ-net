@@ -2,7 +2,9 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+// Match routes for different access control
+const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -15,7 +17,6 @@ export default clerkMiddleware(async (auth, req) => {
   if (isWebhookRoute(req)) {
     console.log("📩 Incoming webhook request...");
 
-    // Ensure Webhook Secret Exists
     if (!process.env.CLERK_WEBHOOK_SECRET) {
       console.warn("❌ Missing Clerk Webhook Secret");
       return new NextResponse("Error: Missing Webhook Secret", { status: 500 });
@@ -25,9 +26,22 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Protect /dashboard routes
-  if (isProtectedRoute(req)) {
-    console.log("🔒 Accessing protected route:", req.nextUrl.pathname);
+  // **Protect /dashboard routes** → Requires authentication
+  if (isDashboardRoute(req)) {
+    console.log("🔒 Accessing protected dashboard:", req.nextUrl.pathname);
+
+    if (!userId) {
+      console.warn("❌ User is not authenticated, redirecting to sign-in");
+      return redirectToSignIn();
+    }
+
+    console.log("✅ User is authenticated, granting dashboard access");
+    return NextResponse.next();
+  }
+
+  // **Protect /admin routes** → Requires authentication & "admin" role
+  if (isAdminRoute(req)) {
+    console.log("🔒 Accessing protected admin route:", req.nextUrl.pathname);
 
     if (!userId) {
       console.warn("❌ User is not authenticated, redirecting to sign-in");
@@ -36,7 +50,7 @@ export default clerkMiddleware(async (auth, req) => {
 
     try {
       console.log(`📡 Fetching user metadata for user: ${userId}`);
-      const client = await clerkClient();
+      const client = await clerkClient()
       const user = await client.users.getUser(userId);
       const userRole = user?.publicMetadata?.role;
       console.log(`🎭 User role: ${userRole || "None"}`);
@@ -46,7 +60,8 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
 
-      console.log("✅ User is authorized to access this page");
+      console.log("✅ User is authorized to access admin panel");
+      return NextResponse.next();
     } catch (error) {
       console.error("❌ Error fetching user metadata:", error);
       return NextResponse.redirect(new URL("/sign-in", req.url));
