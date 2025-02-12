@@ -1,3 +1,4 @@
+'use server';
 
 import { PrismaClient as PrismaClientEdge } from "@prisma/client/edge"; // For serverless (Netlify)
 import { PrismaClient as PrismaClientStandard } from "@prisma/client"; // For local development
