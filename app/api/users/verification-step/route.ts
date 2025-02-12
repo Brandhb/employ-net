@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export async function POST(request: NextRequest) {
   try {
-    // ✅ Parse request body
+    // ✅ Ensure request body is valid
     const body = await request.json();
     if (!body) {
       console.error("⛔ Invalid request - Missing request body");
@@ -15,10 +15,10 @@ export async function POST(request: NextRequest) {
 
     const { fromMiddleware, userId: middlewareUserId, userEmail } = body;
 
-    // ✅ Ensure `userId` exists
+    // ✅ Ensure userId is valid
     let userId = middlewareUserId;
     if (!fromMiddleware) {
-      const authUser = await auth(); // ✅ No need to `await` auth()
+      const authUser = await auth(); // ✅ No need to `await`
       userId = authUser?.userId;
     }
 
@@ -33,24 +33,19 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ Fetch verification step safely
-    let verificationStep;
+    let verificationStep = 0;
     try {
       verificationStep = (await getUserVerificationStep(userId)) || 0;
     } catch (error) {
       console.error("❌ Error fetching verification step:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch verification step" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to fetch verification step" }, { status: 500 });
     }
 
     console.log("✅ Returning Verification Step:", verificationStep);
     return NextResponse.json({ verificationStep });
+
   } catch (error) {
     console.error("🚨 Internal server error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
