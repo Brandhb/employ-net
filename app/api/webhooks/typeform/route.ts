@@ -1,21 +1,25 @@
-import { NextResponse } from "next/server";
-import { headers } from "next/headers";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const headersList = headers();
-  const signature = headersList.get("typeform-signature");
-
-  // TODO: Verify Typeform webhook signature
-  // const isValidSignature = verifyTypeformSignature(signature, body);
-  // if (!isValidSignature) {
-  //   return new NextResponse("Invalid signature", { status: 401 });
-  // }
-
+export async function POST(request: NextRequest) {
   try {
+    const body = await request.json();
+    const headersList = request.headers; // ✅ Fix: Retrieve headers properly
+    const signature = headersList.get("typeform-signature");
+
+    console.log("🔹 Received Typeform Webhook with Signature:", signature);
+
+    // TODO: Verify Typeform webhook signature
+    // const isValidSignature = verifyTypeformSignature(signature, body);
+    // if (!isValidSignature) {
+    //   console.warn("❌ Invalid Signature:", signature);
+    //   return new NextResponse("Invalid signature", { status: 401 });
+    // }
+
     const { form_response } = body;
     const formId = form_response.form_id;
+
+    console.log("🔹 Form ID:", formId);
 
     // Find the activity associated with this form
     const activity = await prisma.activity.findFirst({
@@ -23,18 +27,20 @@ export async function POST(request: Request) {
         type: "survey",
         metadata: {
           path: ["form_id"],
-          equals: formId
-        }
+          equals: formId,
+        },
       },
     });
 
     if (!activity) {
+      console.error("❌ Activity not found for form ID:", formId);
       return new NextResponse("Activity not found", { status: 404 });
     }
 
-    // Record the survey completion in a transaction
+    console.log("✅ Activity Found:", activity.id, "| User ID:", activity.userId);
+
+    // ✅ Transaction to update activity and user points
     await prisma.$transaction([
-      // Update activity status
       prisma.activity.update({
         where: { id: activity.id },
         data: {
@@ -47,18 +53,14 @@ export async function POST(request: Request) {
           },
         },
       }),
-
-      // Add points to user's balance
       prisma.user.update({
         where: { id: activity.userId },
         data: {
           points_balance: {
-            increment: activity.points
-          }
+            increment: activity.points,
+          },
         },
       }),
-
-      // Log the activity
       prisma.activityLog.create({
         data: {
           userId: activity.userId,
@@ -69,12 +71,14 @@ export async function POST(request: Request) {
             response_id: form_response.token,
           },
         },
-      })
+      }),
     ]);
+
+    console.log("✅ Activity Updated & Points Added Successfully");
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error processing Typeform webhook:", error);
+    console.error("❌ Error processing Typeform webhook:", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
