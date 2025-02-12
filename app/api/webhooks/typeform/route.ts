@@ -1,84 +1,99 @@
 import { NextResponse, NextRequest } from "next/server";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const headersList = request.headers; // ✅ Fix: Retrieve headers properly
-    const signature = headersList.get("typeform-signature");
+    const headersList = headers();
+    const signature = headersList.get("mux-signature");
 
-    console.log("🔹 Received Typeform Webhook with Signature:", signature);
+    console.log("🔹 Received MUX Webhook Payload:", JSON.stringify(body, null, 2));
+    console.log("🔹 MUX Signature:", signature);
 
-    // TODO: Verify Typeform webhook signature
-    // const isValidSignature = verifyTypeformSignature(signature, body);
-    // if (!isValidSignature) {
-    //   console.warn("❌ Invalid Signature:", signature);
-    //   return new NextResponse("Invalid signature", { status: 401 });
+    // TODO: Verify Mux webhook signature (if applicable)
+    // if (!verifyMuxSignature(signature, body)) {
+    //   console.warn("⚠️ Invalid MUX signature.");
+    //   return NextResponse.json({ success: false, message: "Invalid signature" }, { status: 401 });
     // }
 
-    const { form_response } = body;
-    const formId = form_response.form_id;
+    switch (body.type) {
+      case "video.asset.ready": {
+        console.log("✅ Video asset is ready, updating activity...");
 
-    console.log("🔹 Form ID:", formId);
+        const activity = await prisma.activity.findFirst({
+          where: {
+            metadata: {
+              path: ["asset_id"],
+              equals: body.data.id,
+            },
+          },
+        });
 
-    // Find the activity associated with this form
-    const activity = await prisma.activity.findFirst({
-      where: {
-        type: "survey",
-        metadata: {
-          path: ["form_id"],
-          equals: formId,
-        },
-      },
-    });
+        if (!activity) {
+          console.error("❌ Activity not found for asset_id:", body.data.id);
+          return NextResponse.json({ success: false, message: "Activity not found" }, { status: 404 });
+        }
 
-    if (!activity) {
-      console.error("❌ Activity not found for form ID:", formId);
-      return new NextResponse("Activity not found", { status: 404 });
+        // Update activity with playback details
+        await prisma.activity.update({
+          where: { id: activity.id },
+          data: {
+            status: "ready",
+            metadata: {
+              ...(activity.metadata as Record<string, any>),
+              playback_id: body.data.playback_ids?.[0]?.id || null,
+              duration: body.data.duration || null,
+              aspect_ratio: body.data.aspect_ratio || null,
+            },
+          },
+        });
+
+        console.log("✅ Activity updated successfully:", activity.id);
+        break;
+      }
+
+      case "video.asset.errored": {
+        console.error("❌ Video asset processing error:", body.data.error?.message);
+
+        const activity = await prisma.activity.findFirst({
+          where: {
+            metadata: {
+              path: ["asset_id"],
+              equals: body.data.id,
+            },
+          },
+        });
+
+        if (!activity) {
+          console.error("❌ Activity not found for asset_id:", body.data.id);
+          return NextResponse.json({ success: false, message: "Activity not found" }, { status: 404 });
+        }
+
+        await prisma.activity.update({
+          where: { id: activity.id },
+          data: {
+            status: "error",
+            metadata: {
+              ...(activity.metadata as Record<string, any>),
+              error: body.data.error?.message || "Unknown error",
+            },
+          },
+        });
+
+        console.log("✅ Activity marked as 'error':", activity.id);
+        break;
+      }
+
+      default: {
+        console.warn("⚠️ Unhandled webhook type:", body.type);
+        return NextResponse.json({ success: false, message: "Unhandled webhook type" }, { status: 400 });
+      }
     }
-
-    console.log("✅ Activity Found:", activity.id, "| User ID:", activity.userId);
-
-    // ✅ Transaction to update activity and user points
-    await prisma.$transaction([
-      prisma.activity.update({
-        where: { id: activity.id },
-        data: {
-          status: "completed",
-          completedAt: new Date(),
-          metadata: {
-            ...(activity.metadata as Record<string, any>),
-            response_id: form_response.token,
-            submitted_at: form_response.submitted_at,
-          },
-        },
-      }),
-      prisma.user.update({
-        where: { id: activity.userId },
-        data: {
-          points_balance: {
-            increment: activity.points,
-          },
-        },
-      }),
-      prisma.activityLog.create({
-        data: {
-          userId: activity.userId,
-          activityId: activity.id,
-          action: "survey_completed",
-          metadata: {
-            form_id: formId,
-            response_id: form_response.token,
-          },
-        },
-      }),
-    ]);
-
-    console.log("✅ Activity Updated & Points Added Successfully");
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("❌ Error processing Typeform webhook:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("❌ Webhook Processing Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
