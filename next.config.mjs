@@ -8,27 +8,29 @@ const nextConfig = {
     googleAnalyticsId: process.env.NEXT_PUBLIC_MEASUREMENT_ID,
   },
   webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        http: false,
-        https: false,
-        fs: false,
-        net: false,
-        tls: false,
-        path: false,
-      };
+    // ✅ Prevent Webpack from bundling `node:http` for both client and server
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      http: false,
+      https: false,
+      fs: false,
+      net: false,
+      tls: false,
+      path: false,
+    };
 
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        "node:http": false,
-        "node:https": false,
-      };
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "node:http": false, // 🔥 Make sure this is ignored in both server & client
+      "node:https": false,
+    };
 
-      // ✅ Prevent @prisma/extension-pulse from being bundled in the client
+    // ✅ Prevent @prisma/extension-pulse from being bundled in both client & server
+    if (isServer) {
       config.externals = [
         ...(config.externals || []),
         "@prisma/extension-pulse",
+        "pino-pretty", "lokijs", "encoding",
       ];
     }
 
