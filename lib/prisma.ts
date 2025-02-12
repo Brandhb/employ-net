@@ -1,5 +1,3 @@
-'use server';
-
 import { PrismaClient as PrismaClientEdge } from "@prisma/client/edge"; // Serverless (Netlify)
 import { PrismaClient as PrismaClientStandard } from "@prisma/client"; // Local development
 import { withPulse } from "@prisma/extension-pulse/node"; // ✅ Explicitly use `node` version
