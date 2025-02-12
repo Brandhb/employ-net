@@ -48,6 +48,7 @@ export interface VerificationSession {
   user: User; // Related user
 }
 
+
 export interface ActivityData {
   id: string;
   title: string;
@@ -55,8 +56,11 @@ export interface ActivityData {
   status: "active" | "draft";
   points: number;
   createdAt: string;
-  completedAt: string | null;
-}
+  completedAt?: Date | null;
+  metadata?: Record<string, any>;
+  userId?: string; // Add userId if necessary
+};
+
 
 export interface Activity {
   id: string; // UUID

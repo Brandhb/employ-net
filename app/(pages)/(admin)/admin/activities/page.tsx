@@ -38,12 +38,19 @@ import {
 } from "@/app/actions/admin";
 import { revalidatePath } from "next/cache";
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
+import { EditActivityForm } from "@/components/admin/edit-activity-form";
+import { useRouter } from "next/navigation";
 
 export default function ActivitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [activityToEdit, setActivityToEdit] = useState<Activity | null>(null);
+
   const { toast } = useToast();
+  const router = useRouter()
+
 
   // ✅ Fetch activities from the database on mount
   useEffect(() => {
@@ -52,7 +59,7 @@ export default function ActivitiesPage() {
       setActivities(data);
     }
     fetchActivities();
-  }, []);
+  }, [isEditModalOpen]);
 
   // ✅ Filter activities based on search input
   const filteredActivities = activities.filter((activity) =>
@@ -60,23 +67,29 @@ export default function ActivitiesPage() {
   );
 
   // ✅ Handle activity creation
-  const handleCreateActivity = async (newActivity: Omit<Activity, "id" | "createdAt">) => {
+  const handleCreateActivity = async (
+    newActivity: Omit<Activity, "id" | "createdAt">
+  ) => {
     try {
       const formattedActivity: CreateActivityData = {
         ...newActivity,
         type: newActivity.type as "video" | "survey", // ✅ Explicitly cast `type`
         status: newActivity.status as "active" | "draft", // ✅ Explicitly cast `status`
       };
-  
+
       const result = await createActivity(formattedActivity);
 
       if (!result.success) {
         throw new Error(result.error || "Failed to create activity");
       }
 
-      toast({ title: "Success", description: "Activity created successfully!" });
+      toast({
+        title: "Success",
+        description: "Activity created successfully!",
+      });
 
-      revalidatePath("/admin/activities"); // ✅ Refresh cache
+      //revalidatePath("/admin/activities"); // ✅ Refresh cache
+      router.refresh()
       setActivities(await getActivities()); // ✅ Fetch updated data
 
       setIsModalOpen(false); // ✅ Close modal after success
@@ -86,25 +99,24 @@ export default function ActivitiesPage() {
 
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong",
+        description:
+          error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
 
-      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   };
 
   // ✅ Handle activity status update
-  const handleEditActivity = async (id: string, status: "active" | "draft") => {
-    try {
-      await updateActivityStatus(id, status);
-      setActivities((prev) =>
-        prev.map((activity) => (activity.id === id ? { ...activity, status } : activity))
-      );
-      toast({ title: "Success", description: "Activity status updated" });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
-    }
+  const handleEditActivity = async (activity: ActivityData) => {
+    debugger;
+    console.log("here");
+    setActivityToEdit(activity as unknown as Activity);
+    setIsEditModalOpen(true);
   };
 
   // ✅ Handle activity deletion
@@ -114,7 +126,11 @@ export default function ActivitiesPage() {
       setActivities((prev) => prev.filter((activity) => activity.id !== id));
       toast({ title: "Success", description: "Activity deleted successfully" });
     } catch (error) {
-      toast({ title: "Error", description: "Failed to delete activity", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to delete activity",
+        variant: "destructive",
+      });
     }
   };
 
@@ -170,7 +186,9 @@ export default function ActivitiesPage() {
             <TableBody>
               {filteredActivities.map((activity) => (
                 <TableRow key={activity.id}>
-                  <TableCell className="font-medium">{activity.title}</TableCell>
+                  <TableCell className="font-medium">
+                    {activity.title}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center">
                       {activity.type === "video" ? (
@@ -193,8 +211,16 @@ export default function ActivitiesPage() {
                       {activity.status}
                     </span>
                   </TableCell>
-                  <TableCell>{activity.completedAt ? new Date(activity.completedAt).toLocaleDateString() : "Not Completed"}</TableCell>
-                  <TableCell>{activity.createdAt ? new Date(activity.createdAt).toLocaleDateString() : "N/A"}</TableCell>
+                  <TableCell>
+                    {activity.completedAt
+                      ? new Date(activity.completedAt).toLocaleDateString()
+                      : "Not Completed"}
+                  </TableCell>
+                  <TableCell>
+                    {activity.createdAt
+                      ? new Date(activity.createdAt).toLocaleDateString()
+                      : "N/A"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -203,10 +229,15 @@ export default function ActivitiesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditActivity(activity.id, activity.status as "active" | "draft")}>
+                        <DropdownMenuItem
+                          onClick={() => handleEditActivity(activity)}
+                        >
                           Edit Task
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteActivity(activity.id)} className="text-red-600">
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteActivity(activity.id)}
+                          className="text-red-600"
+                        >
                           Delete Task
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -218,6 +249,23 @@ export default function ActivitiesPage() {
           </Table>
         </CardContent>
       </Card>
+      {/* Edit Activity Modal */}
+      {isEditModalOpen && activityToEdit && (
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+              <DialogDescription>
+                Edit the details of this task.
+              </DialogDescription>
+            </DialogHeader>
+            <EditActivityForm
+              activity={activityToEdit}
+              onClose={() => setIsEditModalOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

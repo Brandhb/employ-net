@@ -647,13 +647,11 @@ export interface CreateActivityData {
   description?: string;
 }
 
-
-
 // Define the return type
 export type CreateActivityResponse = {
   success: boolean;
   error?: string;
-  activity?: Activity
+  activity?: Activity;
 };
 
 // ✅ Memoize getActivities function with cache()
@@ -679,8 +677,8 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
       type: activity.type as "video" | "survey",
       status: activity.status as "active" | "draft",
       points: activity.points,
-      createdAt: activity.createdAt ? activity.createdAt.toISOString() : "",
-      completedAt: activity.completedAt ? activity.completedAt.toISOString() : null,
+      createdAt: activity.createdAt ? activity.createdAt.toISOString() : "", // ✅ Convert to string
+      completedAt: activity.completedAt ?? null, // ✅ Keep as Date | null
     }));
   } catch (error) {
     console.error("❌ getActivities: Error fetching activities:", error);
@@ -688,7 +686,10 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
   }
 });
 
-export async function createActivity(data: CreateActivityData): Promise<CreateActivityResponse> {
+export const createActivity = async (
+  data: CreateActivityData
+): Promise<CreateActivityResponse> => {
+  debugger;
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "Unauthorized" };
@@ -706,18 +707,45 @@ export async function createActivity(data: CreateActivityData): Promise<CreateAc
     await prisma.activity.create({
       data: { ...data, userId: internalUser.id },
     });
-
-    // ✅ Revalidate the cached activities list
-    revalidatePath("/admin/activities");
+    revalidatePath("/dashboard/activities");
 
     return { success: true };
   } catch (error) {
     console.error("❌ createActivity: Error creating activity:", error);
     return { success: false, error: "Failed to create activity" };
   }
-}
+};
+
+export const updateActivity = async (
+  id: string,
+  data: Partial<CreateActivityData>
+): Promise<CreateActivityResponse> => {
+  try {
+    const { userId } = await auth();
+    if (!userId) return { success: false, error: "Unauthorized" };
+
+    const internalUser = await prisma.user.findUnique({
+      where: { employClerkUserId: userId },
+    });
+
+    if (!internalUser) {
+      console.error("❌ No internal user found for Clerk ID:", userId);
+      return { success: false, error: "User not found in database" };
+    }
+
+    await prisma.activity.update({
+      where: { id },
+      data,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ updateActivity: Error updating activity:", error);
+    return { success: false, error: "Failed to update activity" };
+  }
+};
 
 export async function updateActivityStatus(activityId: string, status: string) {
+  debugger;
   const { userId } = await auth();
   await requireAdminAuth();
 
@@ -734,7 +762,6 @@ export async function updateActivityStatus(activityId: string, status: string) {
     data: { status },
   });
 
-  revalidatePath("/admin/activities");
   revalidatePath("/dashboard/activities");
 
   return activity;
