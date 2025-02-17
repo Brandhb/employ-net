@@ -8,6 +8,7 @@ const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
+  //debugger;
   console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
 
   const { userId, redirectToSignIn } = await auth();
@@ -26,7 +27,7 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // **Protect /dashboard routes** → Requires authentication
+  // **Protect /dashboard routes & Redirect Admins**
   if (isDashboardRoute(req)) {
     console.log("🔒 Accessing protected dashboard:", req.nextUrl.pathname);
 
@@ -35,8 +36,24 @@ export default clerkMiddleware(async (auth, req) => {
       return redirectToSignIn();
     }
 
-    console.log("✅ User is authenticated, granting dashboard access");
-    return NextResponse.next();
+    try {
+      console.log(`📡 Fetching user metadata for user: ${userId}`);
+      const { users } = await clerkClient();
+      const user = await users.getUser(userId);
+      const userRole = user?.publicMetadata?.role;
+      console.log(`🎭 User role: ${userRole || "None"}`);
+
+      /*if (userRole === "admin") {
+        console.warn("🔀 Admin user detected, redirecting to /admin");
+        return NextResponse.redirect(new URL("/admin", req.url));
+      }*/
+
+      console.log("✅ User is authenticated, granting dashboard access");
+      return NextResponse.next();
+    } catch (error) {
+      console.error("❌ Error fetching user metadata:", error);
+      return NextResponse.redirect(new URL("/sign-in", req.url));
+    }
   }
 
   // **Protect /admin routes** → Requires authentication & "admin" role
@@ -50,8 +67,8 @@ export default clerkMiddleware(async (auth, req) => {
 
     try {
       console.log(`📡 Fetching user metadata for user: ${userId}`);
-      const client = await clerkClient()
-      const user = await client.users.getUser(userId);
+      const { users } = await clerkClient();
+      const user = await users.getUser(userId);
       const userRole = user?.publicMetadata?.role;
       console.log(`🎭 User role: ${userRole || "None"}`);
 

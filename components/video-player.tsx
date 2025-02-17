@@ -26,6 +26,8 @@ export function VideoPlayer({ playbackId, title, points, activityId }: VideoPlay
       if (progress >= 90 && !completed) {
         setCompleted(true);
         try {
+          console.log('from Video !!')
+
           const response = await fetch('/api/activities/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

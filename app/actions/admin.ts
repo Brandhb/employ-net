@@ -666,6 +666,12 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
         points: true,
         createdAt: true,
         completedAt: true,
+        is_template: true, // ✅ Add this to fix TypeScript error
+        _count: {
+          select: {
+            completions: true, // ✅ Only select the relevant count
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -676,8 +682,10 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
       type: activity.type as "video" | "survey",
       status: activity.status as "active" | "draft",
       points: activity.points,
-      createdAt: activity.createdAt ? activity.createdAt.toISOString() : "", // ✅ Convert to string
-      completedAt: activity.completedAt ?? null, // ✅ Keep as Date | null
+      createdAt: activity.createdAt ? activity.createdAt.toISOString() : "",
+      completedAt: activity.completedAt ?? null,
+      isTemplate: activity.is_template, // ✅ Fixed this
+      _count: activity._count.completions, // ✅ Extract only the `completions` count
     }));
   } catch (error) {
     console.error("❌ getActivities: Error fetching activities:", error);
@@ -688,6 +696,7 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
 export const createActivity = async (
   data: CreateActivityData
 ): Promise<CreateActivityResponse> => {
+  //debugger;
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "Unauthorized" };
@@ -703,7 +712,7 @@ export const createActivity = async (
     }
 
     await prisma.activity.create({
-      data: { ...data, userId: internalUser.id },
+      data: { ...data, userId: internalUser.id, is_template: true },
     });
     revalidatePath("/dashboard/activities");
 

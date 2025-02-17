@@ -50,6 +50,7 @@ export interface VerificationSession {
 
 
 export interface ActivityData {
+  _count: number;
   id: string;
   title: string;
   type: "video" | "survey";
@@ -59,6 +60,7 @@ export interface ActivityData {
   completedAt?: Date | null;
   metadata?: Record<string, any>;
   userId?: string; // Add userId if necessary
+  is_template?: boolean;
 };
 
 
@@ -74,6 +76,7 @@ export interface Activity {
   createdAt?: Date; // Creation timestamp
   metadata?: Record<string, any>; // Metadata as a key-value store
   user: User; // Related user
+  is_template: boolean;
   logs: ActivityLog[]; // Related activity logs
 }
 

@@ -41,13 +41,29 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Activity found:", activity.title);
 
-    // ✅ Use Prisma transaction for atomic updates
-    const [updatedActivity, updatedUser, newLog, newNotification] = await prisma.$transaction([
-      prisma.activity.update({
-        where: { id: body.activityId },
+    // ✅ Check if the user has already completed this activity
+    const existingCompletion = await prisma.activity_completions.findFirst({
+      where: {
+        user_id: user.id,
+        activity_id: activity.id,
+      },
+    });
+
+    if (existingCompletion) {
+      console.warn("⚠️ User already completed this activity:", activity.id);
+      return NextResponse.json({ 
+        success: false, 
+        message: "You have already completed this activity." 
+      }, { status: 409 });
+    }
+
+    // ✅ Use Prisma transaction for atomic updates with activityCompletion
+    const [newCompletion, updatedUser, newLog, newNotification] = await prisma.$transaction([
+      prisma.activity_completions.create({
         data: {
-          status: 'completed',
-          completedAt: new Date(),
+          user_id: user.id,
+          activity_id: activity.id,
+          completed_at: new Date(),
         },
       }),
       prisma.user.update({
@@ -81,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      activity: updatedActivity,
+      completion: newCompletion,
       user: { id: updatedUser.id, points_balance: updatedUser.points_balance },
       log: newLog,
       notification: newNotification,

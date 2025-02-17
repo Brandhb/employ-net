@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { isUUID } from "@/lib/utils";
 import { auth } from "@clerk/nextjs/server";
 
 // Define the Ad type
@@ -32,9 +33,25 @@ export interface Ad {
 export async function fetchLatestAd(userId: string): Promise<Ad | null> {
   if (!userId) return null;
 
+  // Check if user exists in Prisma
+  const internalUser = await prisma.user.findUnique({
+    where: { employClerkUserId: userId },
+  });
+
+  if (!internalUser) {
+    console.error("❌ No internal user found for Clerk ID:", userId);
+    return null; // Return null instead of throwing an error
+  }
+
+  // ✅ Validate UUID before querying Prisma
+  if (!isUUID(internalUser.id)) {
+    console.error("❌ Invalid UUID format for user_id:", userId);
+    return null; // Return null instead of throwing an error
+  }
+
   try {
     const latestInteraction = await prisma.adInteraction.findFirst({
-      where: { userId },
+      where: { userId: internalUser.id },
       orderBy: { createdAt: "desc" },
     });
 

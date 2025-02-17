@@ -36,7 +36,6 @@ import {
   CreateActivityResponse,
   CreateActivityData,
 } from "@/app/actions/admin";
-import { revalidatePath } from "next/cache";
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 import { EditActivityForm } from "@/components/admin/edit-activity-form";
 import { useRouter } from "next/navigation";
@@ -49,8 +48,7 @@ export default function ActivitiesPage() {
   const [activityToEdit, setActivityToEdit] = useState<Activity | null>(null);
 
   const { toast } = useToast();
-  const router = useRouter()
-
+  const router = useRouter();
 
   // ✅ Fetch activities from the database on mount
   useEffect(() => {
@@ -89,7 +87,7 @@ export default function ActivitiesPage() {
       });
 
       //revalidatePath("/admin/activities"); // ✅ Refresh cache
-      router.refresh()
+      router.refresh();
       setActivities(await getActivities()); // ✅ Fetch updated data
 
       setIsModalOpen(false); // ✅ Close modal after success
@@ -177,7 +175,7 @@ export default function ActivitiesPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>Points</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Completed At</TableHead>
+                <TableHead>Completed</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -210,11 +208,7 @@ export default function ActivitiesPage() {
                       {activity.status}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    {activity.completedAt
-                      ? new Date(activity.completedAt).toLocaleDateString()
-                      : "Not Completed"}
-                  </TableCell>
+                  <TableCell>{activity._count}</TableCell>
                   <TableCell>
                     {activity.createdAt
                       ? new Date(activity.createdAt).toLocaleDateString()

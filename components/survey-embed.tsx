@@ -30,6 +30,7 @@ export function SurveyEmbed({ formId, title, points, activityId }: SurveyEmbedPr
 
   // ✅ Wrap `handleSubmit` in useCallback to prevent unnecessary re-renders
   const handleSubmit = useCallback(async () => {
+    console.log('from survey !!')
     try {
       const response = await fetch('/api/activities/complete', {
         method: 'POST',
