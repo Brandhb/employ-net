@@ -113,7 +113,6 @@ export default function ActivitiesPage() {
 
   // ✅ Handle activity status update
   const handleEditActivity = async (activity: ActivityData) => {
-    debugger;
     console.log("here");
     setActivityToEdit(activity as unknown as Activity);
     setIsEditModalOpen(true);

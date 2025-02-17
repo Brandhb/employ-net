@@ -53,9 +53,8 @@ async function requireAdminAuth() {
   return userId;
 }
 
-// Add these functions to the existing file
 export async function getAdminUsers(): Promise<AdminUser[]> {
-  await requireAdminAuth(); // 👈 Replacing redundant checks
+  await requireAdminAuth();
 
   const users = await prisma.user.findMany({
     select: {
@@ -689,7 +688,6 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
 export const createActivity = async (
   data: CreateActivityData
 ): Promise<CreateActivityResponse> => {
-  debugger;
   try {
     const { userId } = await auth();
     if (!userId) return { success: false, error: "Unauthorized" };
@@ -745,7 +743,6 @@ export const updateActivity = async (
 };
 
 export async function updateActivityStatus(activityId: string, status: string) {
-  debugger;
   const { userId } = await auth();
   await requireAdminAuth();
 

@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import Hero from "./hero";
 import PlatformPreview from "./platform-preview";
 import MobilePreview from "./mobile-preview";
+import { SubscriptionCards } from "./subscription-card";
 
 // Lazy Load Sections with Individual Skeletons
 const FeaturePreview = dynamic(() => import("./feature-preview"), {
@@ -36,6 +37,22 @@ export default function PreviewSections() {
         <TestimonialsPreview />
       </Suspense>
 */}
+
+{/*
+      <section className="py-20 px-4 bg-gradient-to-b from-background via-muted/50 to-background">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Flexible Plans</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Choose the perfect plan for your needs. Upgrade or downgrade at
+              any time.
+            </p>
+          </div>
+          <SubscriptionCards />
+        </div>
+      </section>
+*/}
+
       <ContactPreview />
     </>
   );
