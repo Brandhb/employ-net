@@ -29,6 +29,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    debugger
     e.preventDefault();
     if (!userId) return;
 

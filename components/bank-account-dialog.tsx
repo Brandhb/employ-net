@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { BankAccountForm } from "@/components/back-account-form";
-import type { BankAccountFormData } from "@/app/actions/bank-account";
+import { BankAccountFormData } from "@/app/lib/zod-schemas/bank-account-schema";
 
 interface BankAccountDialogProps {
   existingAccount?: BankAccountFormData | null;

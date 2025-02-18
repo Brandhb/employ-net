@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { User, Bell, Shield, CreditCard } from "lucide-react";
 import { BankAccountDialog } from "@/components/bank-account-dialog";
 import { getBankAccount } from "@/app/actions/bank-account";
-import type { BankAccountFormData } from "@/app/actions/bank-account";
+import { BankAccountFormData } from "@/app/lib/zod-schemas/bank-account-schema";
 
 export default function SettingsPage() {
   const { userId } = useAuth();

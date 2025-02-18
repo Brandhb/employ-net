@@ -20,10 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addBankAccount, updateBankAccount, bankAccountSchema, type BankAccountFormData } from "@/app/actions/bank-account";
+import { addBankAccount, updateBankAccount } from "@/app/actions/bank-account";
 import { Loader2 } from "lucide-react";
 import { useAsync } from "@/hooks/use-async";
 import { AsyncBoundary } from "@/components/ui/async-boundary";
+import { BankAccountFormData, bankAccountSchema } from "@/app/lib/zod-schemas/bank-account-schema";
+import { toast } from "@/hooks/use-toast";
 
 interface BankAccountFormProps {
   existingAccount?: BankAccountFormData;
@@ -47,22 +49,25 @@ function BankAccountFormContent({ existingAccount, onSuccess }: BankAccountFormP
 
   async function onSubmit(values: BankAccountFormData) {
     if (!userId) return;
-
-    await execute(
-      async () => {
-        const result = existingAccount 
-          ? await updateBankAccount(userId, values)
-          : await addBankAccount(userId, values);
-        return result;
-      },
-      {
-        successMessage: `Bank account ${existingAccount ? "updated" : "added"} successfully`,
-        onSuccess: () => {
-          form.reset();
-          onSuccess?.();
-        },
+    debugger;
+    try {
+      const result = existingAccount 
+        ? await updateBankAccount(userId, values)
+        : await addBankAccount(userId, values);
+  
+      if (result.success) {
+        form.reset();  // ✅ Reset form only on success
+        toast({
+          title: "Success",
+          description: "Your Bank account has been updated successfully!",
+        });
+        onSuccess?.(); // ✅ Close the modal only on success
+      } else {
+        console.error("Bank Account Error:", result.error);
       }
-    );
+    } catch (error) {
+      console.error("Bank Account Submission Failed:", error);
+    }
   }
 
   return (
