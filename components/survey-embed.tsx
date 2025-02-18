@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface SurveyEmbedProps {
   formId: string;
@@ -16,29 +16,26 @@ interface SurveyEmbedProps {
   activityId: string;
 }
 
-export function SurveyEmbed({ formId, title, points, activityId }: SurveyEmbedProps) {
+export function SurveyEmbed({
+  formId,
+  title,
+  points,
+  activityId,
+}: SurveyEmbedProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [isCompleted, setIsCompleted] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(0);
-  const [isFormLoaded, setIsFormLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    console.log("Typeform ID Loaded:", formId);
-  }, [formId]);
-
-  // ✅ Wrap `handleSubmit` in useCallback to prevent unnecessary re-renders
   const handleSubmit = useCallback(async () => {
-    console.log('from survey !!')
     try {
-      const response = await fetch('/api/activities/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/activities/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activityId }),
       });
 
-      if (!response.ok) throw new Error('Failed to complete activity');
+      if (!response.ok) throw new Error("Failed to complete activity");
 
       setIsCompleted(true);
       toast({
@@ -48,10 +45,10 @@ export function SurveyEmbed({ formId, title, points, activityId }: SurveyEmbedPr
 
       setTimeout(() => {
         router.refresh();
-        router.push('/dashboard/activities');
+        router.push("/dashboard/activities");
       }, 2000);
     } catch (error) {
-      console.error('Error completing activity:', error);
+      console.error("Error completing activity:", error);
       toast({
         title: "Error",
         description: "Failed to complete activity. Please try again.",
@@ -60,71 +57,61 @@ export function SurveyEmbed({ formId, title, points, activityId }: SurveyEmbedPr
     }
   }, [activityId, points, router, toast]);
 
-  // ✅ Wrap `handleQuestionChanged` in useCallback
-  const handleQuestionChanged = useCallback((data: any) => {
-    console.log("Question Changed:", data);
-
-    if (!data.ref) return;
-
-    const newQuestionNumber = parseInt(data.ref, 10);
-
-    if (newQuestionNumber !== currentQuestion) {
-      setCurrentQuestion(newQuestionNumber);
-      setTotalQuestions((prev) => Math.max(prev, newQuestionNumber));
-
-      if (totalQuestions > 0) {
-        const newProgress = Math.round((newQuestionNumber / totalQuestions) * 100);
-      }
-    }
-  }, [currentQuestion, totalQuestions]);
-
-  // ✅ Now `useMemo()` will only depend on `formId` and stable callbacks
-  const typeformWidget = useMemo(() => (
-    <Widget
-      id={formId}
-      style={{ height: "600px", width: "100%" }}
-      disableTracking
-      onReady={() => {
-        console.log("Typeform Loaded");
-        setIsFormLoaded(true);
-      }}
-      onSubmit={handleSubmit}
-      onQuestionChanged={handleQuestionChanged}
-    />
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [formId]); // No more warnings
+  const handleError = (err: any) => {
+    console.error("Typeform error:", err);
+    setError("There was an issue loading the survey. Please try again later.");
+    toast({
+      title: "Survey Error",
+      description:
+        "Unable to load the survey. Please contact support if this persists.",
+      variant: "destructive",
+    });
+  };
 
   return (
     <div className="space-y-4">
-      <div className="p-4 space-y-4">
-        {isCompleted ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center justify-center p-8 space-y-4"
-          >
+      {error ? (
+        <div className="p-8 text-center space-y-4">
+          <div className="text-red-500 mb-4">
+            <AlertTriangle className="h-12 w-12 mx-auto" />
+          </div>
+          <h3 className="text-xl font-semibold">Survey Unavailable</h3>
+          <p className="text-muted-foreground">{error}</p>
+          <Button onClick={() => router.push("/dashboard/activities")}>
+            Return to Activities
+          </Button>
+        </div>
+      ) : (
+        <div className="p-4 space-y-4">
+          {!isCompleted ? (
+            <>
+              <Widget
+                id={formId}
+                style={{ height: "600px", width: "100%" }}
+                className="mx-auto"
+                onReady={() => console.log("Survey ready")}
+                onSubmit={handleSubmit}
+              />
+            </>
+          ) : (
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center space-y-4"
             >
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
+              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
+              <h3 className="text-xl font-semibold">Survey Completed!</h3>
+              <p className="text-muted-foreground">
+                Thank you for your participation. Your {points} points have been
+                credited.
+              </p>
+              <Button onClick={() => router.push("/dashboard/activities")}>
+                Return to Activities
+              </Button>
             </motion.div>
-            <h3 className="text-xl font-semibold">Survey Completed!</h3>
-            <p className="text-center text-muted-foreground">
-              Thank you for your participation. Your {points} points have been credited to your account.
-            </p>
-            <Button onClick={() => router.push('/dashboard/activities')}>
-              Return to Activities
-            </Button>
-          </motion.div>
-        ) : (
-          <>
-            {!isFormLoaded && <p>Loading form...</p>}
-            {typeformWidget} {/* ✅ Widget is stable now */}
-          </>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

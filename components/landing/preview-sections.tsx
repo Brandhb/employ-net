@@ -13,6 +13,8 @@ import { SubscriptionCards } from "./subscription-card";
 const FeaturePreview = dynamic(() => import("./feature-preview"), {
   ssr: false,
 });
+const PaymentMethodsPreview = dynamic(() => import("./payment-methods-preview"), { ssr: false });
+
 const FAQPreview = dynamic(() => import("./faq-preview"), { ssr: false });
 const AboutPreview = dynamic(() => import("./about-preview"), { ssr: false });
 //const TestimonialsPreview = dynamic(() => import("./testimonials-preview"), { ssr: false });
@@ -30,6 +32,7 @@ export default function PreviewSections() {
       <FeaturePreview />
       <PlatformPreview />
       <MobilePreview />
+      <PaymentMethodsPreview />
       <TextRevealSection />
       <AboutPreview />
       <FAQPreview />

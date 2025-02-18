@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { BankAccountForm } from "@/components/back-account-form";
+import { BankAccountForm } from "@/components/bank-account-form";
 import { BankAccountFormData } from "@/app/lib/zod-schemas/bank-account-schema";
 
 interface BankAccountDialogProps {
