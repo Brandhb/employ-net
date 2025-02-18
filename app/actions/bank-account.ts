@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import { Result, handleError, success, ValidationError, NotFoundError, ConflictError } from "@/lib/erorrs";
+import { Result, handleError, success, ValidationError, NotFoundError, ConflictError } from "@/lib/errors";
 import { BankAccountFormData, bankAccountSchema, mapBankAccountToFormData } from "../lib/zod-schemas/bank-account-schema";
 import { redis } from "@/lib/redis"; // ✅ Import Redis
 

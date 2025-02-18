@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { User } from "@/types";
-import { currentUser, } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 
 const CACHE_EXPIRATION = 300; // 5 minutes
 
@@ -25,10 +25,12 @@ export async function getUserVerificationStep(employClerkUserId: string) {
     });
 
     if (user?.verificationStep !== undefined) {
-      await redis.set(cacheKey, user.verificationStep, { ex: CACHE_EXPIRATION }); // ✅ Cache result
+      await redis.set(cacheKey, user.verificationStep, {
+        ex: CACHE_EXPIRATION,
+      }); // ✅ Cache result
     }
 
-    return user?.verificationStep;
+    return user?.verificationStep ?? 0;
   } catch (error) {
     console.error("❌ Error fetching verification step:", error);
     throw new Error("Failed to fetch user verification step");
@@ -64,7 +66,10 @@ export async function checkVerificationStep() {
     const emails = await getEmails();
     if (!emails || emails.length === 0) {
       console.error("⛔ No email addresses found for user:", employClerkUserId);
-      return { verified: false, reason: "No email addresses associated with account" };
+      return {
+        verified: false,
+        reason: "No email addresses associated with account",
+      };
     }
 
     console.log("🔍 Checking verification step for user:", employClerkUserId);
@@ -76,13 +81,18 @@ export async function checkVerificationStep() {
       verificationStep = await getUserVerificationStep(employClerkUserId);
       if (verificationStep === 1) break;
 
-      console.warn(`⏳ Attempt ${4 - attempts}: Verification step not found. Retrying...`);
+      console.warn(
+        `⏳ Attempt ${4 - attempts}: Verification step not found. Retrying...`
+      );
       await new Promise((res) => setTimeout(res, 1000));
       attempts--;
     }
 
     if (verificationStep !== 1) {
-      console.warn("⚠️ User verification incomplete after retries:", employClerkUserId);
+      console.warn(
+        "⚠️ User verification incomplete after retries:",
+        employClerkUserId
+      );
       return { verified: false, reason: "User verification incomplete" };
     }
 
@@ -94,7 +104,10 @@ export async function checkVerificationStep() {
   }
 }
 
-export async function updateUserVerificationStep(userId: string, newStep: number) {
+export async function updateUserVerificationStep(
+  userId: string,
+  newStep: number
+) {
   console.log("🔄 Updating verification step for:", userId);
 
   await prisma.user.update({
@@ -106,7 +119,6 @@ export async function updateUserVerificationStep(userId: string, newStep: number
   await redis.del(`user:verificationStep:${userId}`);
   console.log("🗑️ Cache cleared for verification step:", userId);
 }
-
 
 export const getDbUser = async (userId: string): Promise<User> => {
   const cacheKey = `user:db:${userId}`;
@@ -134,4 +146,3 @@ export const getDbUser = async (userId: string): Promise<User> => {
     throw new Error("Failed to fetch user");
   }
 };
-

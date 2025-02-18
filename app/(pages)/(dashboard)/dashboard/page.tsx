@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"; 
+
 import { Suspense } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +14,7 @@ export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const stats = await getUserStats(userId) || { points: 0, completedActivities: 0, earnings: 0 };
+  const stats = await getUserStats(userId);
 
   return (
     <div className="flex-1 space-y-4">

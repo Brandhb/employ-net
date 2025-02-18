@@ -8,7 +8,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (!body) {
       console.error("⛔ Invalid request - Missing request body");
-      return NextResponse.json({ error: "Missing request body" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing request body" },
+        { status: 400 }
+      );
     }
 
     console.log("📌 Received Request:", body);
@@ -35,17 +38,23 @@ export async function POST(request: NextRequest) {
     // ✅ Fetch verification step safely
     let verificationStep = 0;
     try {
-      verificationStep = (await getUserVerificationStep(userId)) || 0;
+      const step = await getUserVerificationStep(userId);
+      verificationStep = typeof step === "number" ? step : 0;
     } catch (error) {
       console.error("❌ Error fetching verification step:", error);
-      return NextResponse.json({ error: "Failed to fetch verification step" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to fetch verification step" },
+        { status: 500 }
+      );
     }
 
     console.log("✅ Returning Verification Step:", verificationStep);
     return NextResponse.json({ verificationStep });
-
   } catch (error) {
     console.error("🚨 Internal server error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

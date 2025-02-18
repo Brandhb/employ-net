@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Result } from "@/lib/erorrs";
+import { Result } from "@/lib/errors";
 
 interface UseAsyncOptions<T> {
   onSuccess?: (data: T) => void;
