@@ -1,20 +1,45 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
+import { generalRateLimit, apiRateLimit, adminRateLimit } from "@/lib/rate-limit"; // Import rate limit helpers
 
-// Match routes for different access control
+// Route matchers
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
+const isApiRoute = createRouteMatcher(["/api(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  //debugger;
   console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
 
-  const { userId, redirectToSignIn } = await auth();
-  console.log(`🔑 Authenticated user ID: ${userId || "None"}`);
+  const ip = req.ip ?? "unknown"; // User IP for rate limiting
 
-  // Allow Webhook Requests But Log if Signature is Missing
+  // **Get user authentication status**
+  const { userId, redirectToSignIn } = await auth();
+  const isAuthenticated = Boolean(userId);
+
+  // **Select Appropriate Rate Limiter Based on Route**
+  let rateLimiter = generalRateLimit;
+  if (isApiRoute(req)) {
+    rateLimiter = apiRateLimit;
+  } else if (isAdminRoute(req)) {
+    rateLimiter = adminRateLimit;
+  }
+
+  // **Apply Rate Limiting**
+  const { success, remaining, reset } = await rateLimiter.limit(ip);
+
+  if (!success) {
+    console.warn(`⚠️ Rate limit exceeded for ${ip} on ${req.nextUrl.pathname}`);
+    return NextResponse.json(
+      { error: "Too many requests, slow down!" },
+      { status: 429, headers: { "Retry-After": reset.toString() } }
+    );
+  }
+
+  console.log(`✅ Rate limit check passed (${remaining} requests left)`);
+
+  // **Handle Webhook Security**
   if (isWebhookRoute(req)) {
     console.log("📩 Incoming webhook request...");
 
@@ -27,57 +52,32 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // **Protect /dashboard routes & Redirect Admins**
+  // **Handle Dashboard Access**
   if (isDashboardRoute(req)) {
-    console.log("🔒 Accessing protected dashboard:", req.nextUrl.pathname);
-
     if (!userId) {
       console.warn("❌ User is not authenticated, redirecting to sign-in");
       return redirectToSignIn();
     }
-
-    try {
-      console.log(`📡 Fetching user metadata for user: ${userId}`);
-      const { users } = await clerkClient();
-      const user = await users.getUser(userId);
-      const userRole = user?.publicMetadata?.role;
-      console.log(`🎭 User role: ${userRole || "None"}`);
-
-      /*if (userRole === "admin") {
-        console.warn("🔀 Admin user detected, redirecting to /admin");
-        return NextResponse.redirect(new URL("/admin", req.url));
-      }*/
-
-      console.log("✅ User is authenticated, granting dashboard access");
-      return NextResponse.next();
-    } catch (error) {
-      console.error("❌ Error fetching user metadata:", error);
-      return NextResponse.redirect(new URL("/sign-in", req.url));
-    }
+    return NextResponse.next();
   }
 
-  // **Protect /admin routes** → Requires authentication & "admin" role
+  // **Handle Admin Route Protection**
   if (isAdminRoute(req)) {
-    console.log("🔒 Accessing protected admin route:", req.nextUrl.pathname);
-
     if (!userId) {
       console.warn("❌ User is not authenticated, redirecting to sign-in");
       return redirectToSignIn();
     }
 
     try {
-      console.log(`📡 Fetching user metadata for user: ${userId}`);
-      const { users } = await clerkClient();
+      const { users } = await clerkClient()
       const user = await users.getUser(userId);
-      const userRole = user?.publicMetadata?.role;
-      console.log(`🎭 User role: ${userRole || "None"}`);
+      const userRole = user?.publicMetadata?.role || "user";
 
       if (userRole !== "admin") {
         console.warn("❌ User is not an admin, redirecting to /unauthorized");
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
 
-      console.log("✅ User is authorized to access admin panel");
       return NextResponse.next();
     } catch (error) {
       console.error("❌ Error fetching user metadata:", error);

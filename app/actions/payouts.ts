@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { isAdmin } from "./isAdmin";
 
 export async function getPayoutStats(userId: string) {
   const user = await prisma.user.findUnique({
@@ -41,6 +42,7 @@ export async function getPayoutStats(userId: string) {
 }
 
 export async function requestPayout(userId: string, amount: number) {
+  
   const user = await prisma.user.findUnique({
     where: {
       employClerkUserId: userId
@@ -79,7 +81,8 @@ export async function requestPayout(userId: string, amount: number) {
         userId: user.id,
         title: "Payout Requested",
         message: `Your payout request for $${amount} has been submitted and is being reviewed.`,
-        type: "info"
+        type: "info",        
+        userRole: await isAdmin() ? "admin" : "user"
       }
     })
   ]);

@@ -1,6 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { clerkClient } from "@clerk/nextjs/server";
+
+    
 
 export async function getActivities(userId: string) {
   const user = await prisma.user.findUnique({
@@ -13,6 +16,7 @@ export async function getActivities(userId: string) {
     where: {
       status: "active"
     },
+    
     orderBy: {
       createdAt: 'desc'
     }
@@ -86,11 +90,16 @@ export async function getUserStats(userId: string) {
 }
 
 export async function completeActivity(userId: string, activityId: string) {
-  const user = await prisma.user.findUnique({
+  
+  const { users } = await clerkClient();
+    const user = await users.getUser(userId || "");
+    const isAdmin = user.publicMetadata.role === "admin";
+
+  const internalUser = await prisma.user.findUnique({
     where: { employClerkUserId: userId }
   });
 
-  if (!user) throw new Error("User not found");
+  if (!internalUser) throw new Error("User not found");
 
   const activity = await prisma.activity.findUnique({
     where: { id: activityId }
@@ -108,7 +117,7 @@ export async function completeActivity(userId: string, activityId: string) {
       }
     }),
     prisma.user.update({
-      where: { id: user.id },
+      where: { id: internalUser.id },
       data: {
         points_balance: {
           increment: activity.points
@@ -117,7 +126,7 @@ export async function completeActivity(userId: string, activityId: string) {
     }),
     prisma.activityLog.create({
       data: {
-        userId: user.id,
+        userId: internalUser.id,
         activityId,
         action: "completed",
         metadata: {
@@ -128,10 +137,11 @@ export async function completeActivity(userId: string, activityId: string) {
     }),
     prisma.notification.create({
       data: {
-        userId: user.id,
+        userId: internalUser.id,
         title: "Activity Completed",
         message: `You earned ${activity.points} points for completing ${activity.title}!`,
-        type: "success"
+        type: "success",
+        userRole: isAdmin ? "admin" : "user"
       }
     })
   ]);

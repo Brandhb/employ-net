@@ -11,8 +11,10 @@ interface AnalyticsData {
   averageEngagement: number;
 }
 
-// ✅ Fetch analytics data
-export async function fetchAnalyticsData(): Promise<AnalyticsData | null> {
+import { cache } from "react";
+
+// ✅ Cache analytics data to reduce redundant DB queries
+export const fetchAnalyticsData = cache(async (): Promise<AnalyticsData | null> => {
   try {
     const { userId } = await auth(); // Ensure authenticated user
 
@@ -31,13 +33,9 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData | null> {
     ] = await Promise.all([
       prisma.adInteraction.count(),
       prisma.activity.count(),
-      prisma.activity.count({
-        where: { status: "completed" },
-      }),
+      prisma.activity.count({ where: { status: "completed" } }),
       prisma.adInteraction.aggregate({
-        _avg: {
-          duration: true,
-        },
+        _avg: { duration: true },
       }),
     ]);
 
@@ -52,4 +50,5 @@ export async function fetchAnalyticsData(): Promise<AnalyticsData | null> {
     console.error("❌ Error fetching analytics:", error);
     return null;
   }
-}
+});
+

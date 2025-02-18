@@ -6,6 +6,7 @@ import { createLogger } from "@/lib/logger";
 const logger = createLogger("notifications-mark-all");
 
 export async function POST() {
+  debugger;
   try {
     const { userId } = await auth();
 
@@ -29,14 +30,12 @@ export async function POST() {
     if (isAdmin) {
       await prisma.notification.updateMany({
         where: {
-          type: {
-            startsWith: "admin_",
-          },
+          userRole: "admin",
           read: false,
         },
         data: {
           read: true,
-          updatedAt: new Date(),
+          updated_at: new Date(),
         },
       });
     } else {
@@ -44,16 +43,14 @@ export async function POST() {
       await prisma.notification.updateMany({
         where: {
           userId: userFromDB.id,
-          type: {
-            not: {
-              startsWith: "admin_",
-            },
+          userRole: {
+            not: "admin",
           },
           read: false,
         },
         data: {
           read: true,
-          updatedAt: new Date(),
+          updated_at: new Date(),
         },
       });
     }

@@ -158,6 +158,7 @@ model Notification {
   read       Boolean?  @default(false)
   createdAt  DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
   updated_at DateTime? @db.Timestamptz(6)
+  userRole   String?
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

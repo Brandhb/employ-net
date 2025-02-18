@@ -32,13 +32,11 @@ import {
   createActivity,
   deleteActivity,
   getActivities,
-  updateActivityStatus,
-  CreateActivityResponse,
-  CreateActivityData,
 } from "@/app/actions/admin";
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 import { EditActivityForm } from "@/components/admin/edit-activity-form";
 import { useRouter } from "next/navigation";
+import { CreateActivityData } from "@/app/lib/types/admin";
 
 export default function ActivitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");

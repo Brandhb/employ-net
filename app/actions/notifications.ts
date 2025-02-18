@@ -68,7 +68,9 @@ export async function createNotification({
   isAdmin?: boolean;
 }) {
   try {
-    const notificationType = isAdmin ? `admin_${type}` : type;
+    const { users } = await clerkClient();
+    const user = await users.getUser(userId || "");
+    const isAdmin = user.publicMetadata.role === "admin";
 
     if (isAdmin) {
       // Create a shared admin notification
@@ -76,8 +78,9 @@ export async function createNotification({
         data: {
           title,
           message,
-          type: notificationType,
+          type,
           userId, // We'll still associate it with the creating admin
+          userRole: isAdmin ? "admin" : "user"
         },
       });
     } else {
@@ -87,7 +90,7 @@ export async function createNotification({
           userId,
           title,
           message,
-          type: notificationType,
+          type,
         },
       });
     }

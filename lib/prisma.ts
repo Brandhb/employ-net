@@ -1,17 +1,29 @@
-import { PrismaClient as PrismaClientEdge } from "@prisma/client/edge"; // ✅ Serverless (Netlify)
-import { PrismaClient as PrismaClientStandard } from "@prisma/client"; // ✅ Local development
+import { PrismaClient as PrismaClientEdge } from "@prisma/client/edge"; // ✅ Serverless (Netlify, Vercel)
+import { PrismaClient as PrismaClientStandard } from "@prisma/client"; // ✅ Local development & production
 import { withPulse } from "@prisma/extension-pulse/node"; // ✅ Only for local development
 
 const isServerless = process.env.NETLIFY === "true"; // Detect if running on Netlify
 const isLocal = process.env.NODE_ENV === "development";
 
-// ✅ Use `@prisma/client/edge` for Netlify, else use `@prisma/client`
-export const prisma = isServerless
-  ? new PrismaClientEdge({
-      datasources: { db: { url: process.env.DATABASE_URL } },
-      log: ["warn", "error"], // ✅ Reduce logs in production
-    })
-  : new PrismaClientStandard();
+const globalForPrisma = global as unknown as { 
+  prisma: PrismaClientStandard | PrismaClientEdge;
+};
+
+// ✅ Use Prisma Accelerate's DATABASE_URL for optimized pooling
+const databaseUrl = process.env.DATABASE_URL;
+
+// ✅ Use PrismaClientEdge for Netlify (serverless), otherwise PrismaClientStandard
+export const prisma = globalForPrisma.prisma || 
+  (isServerless 
+    ? new PrismaClientEdge({
+        datasources: { db: { url: databaseUrl } },
+        log: isLocal ? ["query", "info", "warn", "error"] : ["warn", "error"],
+      })
+    : new PrismaClientStandard({
+        datasources: { db: { url: databaseUrl } },
+        log: isLocal ? ["query", "info", "warn", "error"] : ["warn", "error"],
+      })
+  );
 
 // ✅ Enable Prisma Pulse ONLY in local development
 if (!isServerless && isLocal) {
@@ -22,8 +34,12 @@ if (!isServerless && isLocal) {
   );
 }
 
-// ✅ In local development, persist Prisma client globally to prevent multiple connections
+// ✅ Persist Prisma client to prevent multiple connections in development
 if (isLocal) {
-  const globalForPrisma = global as unknown as { prisma: PrismaClientStandard };
   globalForPrisma.prisma = prisma;
 }
+
+// ✅ Graceful shutdown handling
+process.on("beforeExit", async () => {
+  await prisma.$disconnect();
+});

@@ -36,6 +36,7 @@ export function NotificationProvider({
 
   useEffect(() => {
     const fetchNotifications = async () => {
+      debugger;
       if (!employClerkUserId) return;
 
       try {
@@ -79,6 +80,8 @@ export function NotificationProvider({
               createdAt: payload.new.createdAt
                 ? new Date(payload.new.createdAt)
                 : null, // Convert to Date
+              updated_at: payload.new.updatedAt,
+              userRole: payload.new.userRole
             },
             ...prev,
           ]);
@@ -133,7 +136,7 @@ export function NotificationProvider({
       console.error("Error marking all notifications as read:", error);
     }
   };
-
+debugger;
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (

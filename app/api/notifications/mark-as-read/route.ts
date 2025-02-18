@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       where: { id: notificationId },
       data: {
         read: true,
-        updatedAt: new Date(),
+        updated_at: new Date(),
       },
     });
 
