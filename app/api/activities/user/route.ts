@@ -1,4 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
@@ -17,7 +18,9 @@ async function fetchUserActivities(userId: string) {
   console.log("📩 Fetching activities from DB for:", userId);
 
   // ✅ Fetch user
-  const user = await prisma.user.findUnique({ where: { employClerkUserId: userId } });
+  const user = await prisma.user.findUnique({
+    where: { employClerkUserId: userId },
+  });
   if (!user) return { error: "User not found" };
 
   // ✅ Fetch active template activities
@@ -33,8 +36,11 @@ async function fetchUserActivities(userId: string) {
 
   // ✅ Process activities
   const activeActivities = templateActivities
-    .filter(template => !userCompletedActivities.some(ua => ua.activity_id === template.id))
-    .map(template => ({
+    .filter(
+      (template) =>
+        !userCompletedActivities.some((ua) => ua.activity_id === template.id)
+    )
+    .map((template) => ({
       id: template.id,
       title: template.title,
       type: template.type,
@@ -43,7 +49,7 @@ async function fetchUserActivities(userId: string) {
       completedAt: null,
     }));
 
-  const completedActivities = userCompletedActivities.map(ua => ({
+  const completedActivities = userCompletedActivities.map((ua) => ({
     id: ua.activity?.id,
     title: ua.activity?.title,
     type: ua.activity?.type,
@@ -63,12 +69,18 @@ async function fetchUserActivities(userId: string) {
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const data = await fetchUserActivities(userId);
     return NextResponse.json(data);
   } catch (error) {
     console.error("❌ Error fetching activities:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    Sentry.captureException(error); // ✅ Sentry captures this error
+
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

@@ -40,3 +40,6 @@ next-env.d.ts
 .vscode
 .bolt
 
+
+# Sentry Config File
+.env.sentry-build-plugin

@@ -10,6 +10,7 @@ const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
+//  debugger;
   console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
 
   const ip = req.ip ?? "unknown"; // User IP for rate limiting
@@ -54,7 +55,7 @@ export default clerkMiddleware(async (auth, req) => {
 
   // **Handle Dashboard Access**
   if (isDashboardRoute(req)) {
-    if (!userId) {
+    if (!isAuthenticated) {
       console.warn("❌ User is not authenticated, redirecting to sign-in");
       return redirectToSignIn();
     }

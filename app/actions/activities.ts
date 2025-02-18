@@ -2,25 +2,28 @@
 
 import { prisma } from "@/lib/prisma";
 import { clerkClient } from "@clerk/nextjs/server";
-
-    
+import { redis } from "@/lib/redis";
 
 export async function getActivities(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { employClerkUserId: userId }
+  const cacheKey = `activities:active`;
+
+  // ✅ Check Redis cache first
+  const cachedActivities = await redis.get(cacheKey);
+  if (cachedActivities) {
+    console.log("🚀 Returning cached activities");
+    return cachedActivities;
+  }
+
+  console.log("📩 Fetching activities from DB...");
+  const activities = await prisma.activity.findMany({
+    where: { status: "active" },
+    orderBy: { createdAt: "desc" }
   });
 
-  if (!user) throw new Error("User not found");
+  // ✅ Store in Redis with expiration (10 minutes)
+  await redis.set(cacheKey, activities, { ex: 600 });
 
-  return prisma.activity.findMany({
-    where: {
-      status: "active"
-    },
-    
-    orderBy: {
-      createdAt: 'desc'
-    }
-  });
+  return activities;
 }
 
 export async function getActivityById(activityId: string) {
@@ -30,28 +33,46 @@ export async function getActivityById(activityId: string) {
 }
 
 export async function getRecentActivities(userId: string, limit = 5) {
+  const cacheKey = `user:${userId}:recentActivities`;
+
+  // ✅ Check Redis cache first
+  const cachedData = await redis.get(cacheKey);
+  if (cachedData) {
+    console.log("🚀 Returning cached recent activities");
+    return cachedData;
+  }
+
+  console.log("📩 Fetching recent activities from DB...");
   const user = await prisma.user.findUnique({
     where: { employClerkUserId: userId }
   });
 
   if (!user) throw new Error("User not found");
 
-  return prisma.activityLog.findMany({
-    where: {
-      userId: user.id
-    },
-    include: {
-      activity: true
-    },
-    orderBy: {
-      createdAt: 'desc'
-    },
+  const activities = await prisma.activityLog.findMany({
+    where: { userId: user.id },
+    include: { activity: true },
+    orderBy: { createdAt: "desc" },
     take: limit
   });
+
+  // ✅ Store in Redis with expiration (5 minutes)
+  await redis.set(cacheKey, activities, { ex: 300 });
+
+  return activities;
 }
 
 export async function getUserStats(userId: string) {
+  const cacheKey = `user:${userId}:stats`;
 
+  // ✅ Check Redis cache first
+  const cachedStats = await redis.get(cacheKey);
+  if (cachedStats) {
+    console.log("🚀 Returning cached user stats");
+    return cachedStats;
+  }
+
+  console.log("📩 Fetching user stats from DB...");
   const user = await prisma.user.findUnique({
     where: {
       employClerkUserId: userId
@@ -61,9 +82,7 @@ export async function getUserStats(userId: string) {
       _count: {
         select: {
           activities: {
-            where: {
-              status: 'completed'
-            }
+            where: { status: "completed" }
           }
         }
       }
@@ -72,28 +91,28 @@ export async function getUserStats(userId: string) {
 
   const totalEarnings = await prisma.payout.aggregate({
     where: {
-      user: {
-        employClerkUserId: userId
-      },
-      status: 'completed'
+      user: { employClerkUserId: userId },
+      status: "completed"
     },
-    _sum: {
-      amount: true
-    }
+    _sum: { amount: true }
   });
 
-  return {
+  const stats = {
     points: user?.points_balance ?? 0,
     completedActivities: user?._count.activities ?? 0,
     earnings: totalEarnings._sum.amount ?? 0
   };
+
+  // ✅ Store in Redis with expiration (10 minutes)
+  await redis.set(cacheKey, stats, { ex: 600 });
+
+  return stats;
 }
 
 export async function completeActivity(userId: string, activityId: string) {
-  
   const { users } = await clerkClient();
-    const user = await users.getUser(userId || "");
-    const isAdmin = user.publicMetadata.role === "admin";
+  const user = await users.getUser(userId || "");
+  const isAdmin = user.publicMetadata.role === "admin";
 
   const internalUser = await prisma.user.findUnique({
     where: { employClerkUserId: userId }
@@ -119,9 +138,7 @@ export async function completeActivity(userId: string, activityId: string) {
     prisma.user.update({
       where: { id: internalUser.id },
       data: {
-        points_balance: {
-          increment: activity.points
-        }
+        points_balance: { increment: activity.points }
       }
     }),
     prisma.activityLog.create({
@@ -145,6 +162,11 @@ export async function completeActivity(userId: string, activityId: string) {
       }
     })
   ]);
+
+  // ✅ Clear Redis Cache (force refresh)
+  await redis.del(`activities:active`);
+  await redis.del(`user:${userId}:stats`);
+  await redis.del(`user:${userId}:recentActivities`);
 
   return { success: true };
 }

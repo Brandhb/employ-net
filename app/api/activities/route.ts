@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+import * as Sentry from "@sentry/nextjs";
+
 
 export async function GET() {
   try {
@@ -26,6 +28,8 @@ export async function GET() {
     return NextResponse.json(activities);
   } catch (error) {
     console.error("Error fetching activities:", error);
+        Sentry.captureException(error); // ✅ Sentry captures this error
+    
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

@@ -14,6 +14,7 @@ import {
   NotificationPreferences,
 } from "../lib/types/admin";
 import { redis } from "@/lib/redis";
+import * as Sentry from "@sentry/nextjs";
 
 interface User {
   id: string;
@@ -25,10 +26,9 @@ interface User {
   verificationStatus: string;
 }
 
-const activitiesCache = new Map<string, any>();
 
-// ✅ Auth Helper for Admin Verification
-async function requireAdminAuth() {
+// ✅ Ensure User is an Admin
+export async function requireAdminAuth(): Promise<string> {
   const { userId } = await auth();
   if (!userId) throw new Error("No User");
 
@@ -42,7 +42,8 @@ async function requireAdminAuth() {
   return userId;
 }
 
-async function requireAuthUser(): Promise<string> {
+// ✅ Ensure User is Authenticated
+export async function requireAuthUser(): Promise<string> {
   const { userId } = await auth();
   if (!userId) {
     throw new Error("Unauthorized: User not found");
@@ -53,22 +54,20 @@ async function requireAuthUser(): Promise<string> {
 const adminCache = new Map<string, any>();
 const adminAnalyticsCache = new Map<string, any>();
 
-/**
- * ✅ Cached Fetching for Admin Users
- * - Caches user data for 5 minutes to reduce load
- */
-const CACHE_KEY = "adminUsers";
+const ADMIN_USERS_CACHE_KEY = "adminUsers";
 const CACHE_EXPIRATION = 300; // 5 minutes
 
-export async function getAdminUsers(): Promise<User[]> {
+export async function getAdminUsers() {
   await requireAdminAuth();
 
-  const cachedUsers = await redis.get(CACHE_KEY);
+  // ✅ Check Redis cache
+  const cachedUsers = await redis.get(ADMIN_USERS_CACHE_KEY);
   if (cachedUsers) {
     console.log("✅ Returning cached admin users");
-    return cachedUsers as User[]; // ✅ Explicitly assert type
+    return cachedUsers;
   }
 
+  // ✅ Fetch from DB if not in cache
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -81,7 +80,7 @@ export async function getAdminUsers(): Promise<User[]> {
     orderBy: { createdAt: "desc" },
   });
 
-  const formattedUsers: User[] = users.map((user) => ({
+  const formattedUsers = users.map((user) => ({
     id: user.id,
     name: user.name,
     email: user.email || "",
@@ -91,28 +90,31 @@ export async function getAdminUsers(): Promise<User[]> {
     verificationStatus: user.verification_status || "",
   }));
 
-  await redis.set(CACHE_KEY, formattedUsers, { ex: CACHE_EXPIRATION });
+  await redis.set(ADMIN_USERS_CACHE_KEY, formattedUsers, { ex: CACHE_EXPIRATION });
 
   return formattedUsers;
 }
 
+
 // ✅ Function to clear cache when updating users
 export async function clearAdminUsersCache() {
-  await redis.del(CACHE_KEY);
+  await redis.del(ADMIN_USERS_CACHE_KEY);
 }
 
-/**
- * ✅ Cached Dashboard Stats for Both Websites
- * - Reduces database hits by caching results for 5 minutes
- */
-export async function getAdminDashboardStatsBothWebsites() {
-  if (adminCache.has("adminDashboardStats")) {
-    console.log("✅ Returning cached dashboard stats");
-    return adminCache.get("adminDashboardStats");
-  }
+const DASHBOARD_CACHE_KEY = "adminDashboardStats";
+const DASHBOARD_CACHE_EXPIRATION = 300; // 5 minutes
 
+export async function getAdminDashboardStatsBothWebsites() {
   await requireAdminAuth();
 
+  // ✅ Check cache first
+  const cachedStats = await redis.get(DASHBOARD_CACHE_KEY);
+  if (cachedStats) {
+    console.log("✅ Returning cached dashboard stats");
+    return cachedStats;
+  }
+
+  // ✅ Fetch from DB
   const [
     totalUsers,
     activeActivities,
@@ -194,8 +196,7 @@ export async function getAdminDashboardStatsBothWebsites() {
     revenueGrowth: Number(revenueGrowthRaw[0]?.growth || 0),
   };
 
-  adminCache.set("adminDashboardStats", stats);
-  setTimeout(() => adminCache.delete("adminDashboardStats"), 5 * 60 * 1000); // Cache expires in 5 min
+  await redis.set(DASHBOARD_CACHE_KEY, stats, { ex: DASHBOARD_CACHE_EXPIRATION });
 
   return stats;
 }
@@ -312,10 +313,21 @@ export async function getAdminDashboardStats() {
 }
 
 // ✅ Cache admin settings to reduce DB load
-export const getAdminSettings = cache(async () => {
-  const { userId } = await auth();
+const ADMIN_SETTINGS_CACHE_KEY = "adminSettings";
+const ADMIN_SETTINGS_CACHE_EXPIRATION = 600; // 10 minutes
+
+export async function getAdminSettings() {
   await requireAdminAuth();
 
+  // ✅ Check cache first
+  const cachedSettings = await redis.get(ADMIN_SETTINGS_CACHE_KEY);
+  if (cachedSettings) {
+    console.log("✅ Returning cached admin settings");
+    return cachedSettings;
+  }
+  const { userId } = await auth(); 
+
+  // ✅ Fetch from DB
   const user = await prisma.user.findUniqueOrThrow({
     where: { employClerkUserId: userId || "" },
     select: {
@@ -326,60 +338,50 @@ export const getAdminSettings = cache(async () => {
     },
   });
 
-  return {
+  const settings = {
     ...user,
-    notificationPreferences: (typeof user.notificationPreferences === "string"
-      ? JSON.parse(user.notificationPreferences)
-      : user.notificationPreferences) || {
-      dailySummary: true,
-      urgentAlerts: true,
-    },
+    notificationPreferences: user.notificationPreferences
+      ? JSON.parse(user.notificationPreferences.toLocaleString())
+      : { dailySummary: true, urgentAlerts: true },
 
-    adminNotificationPreferences: (typeof user.adminNotificationPreferences ===
-    "string"
-      ? JSON.parse(user.adminNotificationPreferences)
-      : user.adminNotificationPreferences) || {
-      payoutNotifications: true,
-      verificationNotifications: true,
-      systemAlerts: true,
-    },
+    adminNotificationPreferences: user.adminNotificationPreferences
+      ? JSON.parse(user.adminNotificationPreferences.toLocaleString())
+      : { payoutNotifications: true, verificationNotifications: true, systemAlerts: true },
   };
-});
 
-// ❌ No caching for updates (since data changes)
-export async function updateAdminSettings(settings: {
-  notificationPreferences?: NotificationPreferences;
-  adminNotificationPreferences?: AdminNotificationPreferences;
-}) {
-  const { userId } = await auth();
+  await redis.set(ADMIN_SETTINGS_CACHE_KEY, settings, { ex: ADMIN_SETTINGS_CACHE_EXPIRATION });
+
+  return settings;
+}
+
+// ✅ Clear cache after updating admin settings
+export async function updateAdminSettings(newSettings: any) {
   await requireAdminAuth();
+  const { userId } = await auth(); 
 
-  const updatedUser = await prisma.user.update({
+  await prisma.user.update({
     where: { employClerkUserId: userId || "" },
-    data: {
-      ...(settings.notificationPreferences && {
-        notificationPreferences: settings.notificationPreferences as any,
-      }),
-      ...(settings.adminNotificationPreferences && {
-        adminNotificationPreferences:
-          settings.adminNotificationPreferences as any,
-      }),
-    },
-    select: {
-      id: true,
-      email: true,
-      notificationPreferences: true,
-      adminNotificationPreferences: true,
-    },
+    data: { adminNotificationPreferences: JSON.stringify(newSettings) },
   });
 
-  return updatedUser;
+  await redis.del(ADMIN_SETTINGS_CACHE_KEY);
 }
+
 
 ////////--------/
 
+const ANALYTICS_BOTH_CACHE_KEY = "admin:analytics:both";
+const ANALYTICS_BOTH_CACHE_EXPIRATION = 600; // 10 minutes
+
 export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
   await requireAdminAuth();
+
+  // ✅ Check Redis cache first
+  const cachedData = await redis.get(ANALYTICS_BOTH_CACHE_KEY);
+  if (cachedData && typeof cachedData === "object") {
+    console.log("✅ Returning cached admin analytics (Both Websites)");
+    return cachedData as AdminAnalytics;
+  }
 
   const [userStats, activityStats, payoutStats] = await prisma.$transaction([
     prisma.user.groupBy({
@@ -403,28 +405,33 @@ export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
     }),
   ]);
 
-  return {
+  const analyticsData = {
     users: userStats.map((user) => ({
       verificationStatus: user.verification_status ?? "unknown",
-      _count: (user._count as { id?: number })?.id ?? 0, // ✅ Fix: Explicitly cast _count
+      _count: (user._count as {id?: number})?.id ?? 0,
       createdAt: new Date(),
     })),
 
     activities: activityStats.map((activity) => ({
       type: activity.type ?? "unknown",
       status: activity.status ?? "unknown",
-      _count: (activity._count as { id?: number })?.id ?? 0, // ✅ Fix
+      _count: (activity._count as {id?: number})?.id ?? 0,
       _sum: { points: activity._sum?.points ?? 0 },
       metadata: {},
     })),
 
     payouts: payoutStats.map((payout) => ({
       status: payout.status ?? "unknown",
-      _count: (payout._count as { id?: number })?.id ?? 0, // ✅ Fix
+      _count: (payout._count as {id?: number})?.id ?? 0,
       _sum: { amount: payout._sum?.amount ?? 0 },
       created_at: new Date(),
     })),
   };
+
+  // ✅ Store result in Redis with expiration
+  await redis.set(ANALYTICS_BOTH_CACHE_KEY, analyticsData, { ex: ANALYTICS_BOTH_CACHE_EXPIRATION });
+
+  return analyticsData;
 }
 
 export async function getAdminAnalytics(): Promise<AdminAnalytics> {
@@ -525,14 +532,7 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 }
 
 export async function getPayoutRequests() {
-  const { userId } = await auth();
   await requireAdminAuth();
-
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  if (user.publicMetadata.role !== "admin") {
-    throw new Error("Unauthorized");
-  }
 
   // ✅ Fetch payout requests efficiently
   const payouts = await prisma.payout.findMany({
@@ -574,15 +574,7 @@ export async function processPayoutRequest(
   action: "process" | "complete" | "reject",
   notes?: string
 ) {
-  debugger;
-  const { userId } = await auth();
   await requireAdminAuth();
-
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  if (user.publicMetadata.role !== "admin") {
-    throw new Error("Unauthorized");
-  }
 
   const payout = await prisma.payout.findUnique({
     where: { id: payoutId },
@@ -605,7 +597,6 @@ export async function processPayoutRequest(
         status,
         notes,
         processedAt: new Date(),
-        processedBy: userId,
       },
     }),
 
@@ -613,40 +604,35 @@ export async function processPayoutRequest(
       data: {
         userId: payout.userId,
         title: `Payout ${status === "on_the_way" ? "Processing" : status}`,
-        message:
-          status === "on_the_way"
-            ? "Your payout is being processed and will be sent shortly"
-            : status === "completed"
-            ? `Your payout of $${payout.amount} has been sent`
-            : `Your payout was rejected: ${notes || "No reason provided"}`,
+        message: status === "on_the_way"
+          ? "Your payout is being processed."
+          : status === "completed"
+          ? `Your payout of $${payout.amount} has been sent.`
+          : `Your payout was rejected: ${notes || "No reason provided"}`,
         type: status === "rejected" ? "error" : "success",
-        userRole: (await requireAdminAuth()) ? "admin" : "user",
       },
     }),
-
-    ...(status === "rejected"
-      ? [
-          prisma.user.update({
-            where: { id: payout.userId },
-            data: {
-              points_balance: { increment: payout.amount * 100 }, // Convert dollars back to points
-            },
-          }),
-        ]
-      : []),
   ]);
 
-  // ✅ Revalidate relevant pages
   revalidatePath("/admin/payouts");
-  revalidatePath("/dashboard/payouts");
-
-  return { success: true };
 }
 
-// ✅ Memoize getActivities function with cache()
-export const getActivities = cache(async (): Promise<ActivityData[]> => {
+
+const ACTIVITIES_CACHE_KEY = "activities";
+const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
+
+export async function getActivities(): Promise<ActivityData[]> {
   try {
-    console.log("🗂 Fetching activities from database...");
+    console.log(`[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`);
+    
+    // ✅ Check Redis cache first
+    const cachedActivities = await redis.get(ACTIVITIES_CACHE_KEY);
+    if (cachedActivities) {
+      console.log(`[✅ ${new Date().toISOString()}] Returning cached activities`);
+      return cachedActivities as ActivityData[];
+    }
+
+    console.log(`[🗂 ${new Date().toISOString()}] Fetching activities from database...`);
     const activities = await prisma.activity.findMany({
       select: {
         id: true,
@@ -657,12 +643,12 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
         createdAt: true,
         completedAt: true,
         is_template: true,
-        _count: { select: { completions: true } }, // ✅ Selecting only what's needed
+        _count: { select: { completions: true } },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    return activities.map((activity) => ({
+    const formattedActivities = activities.map((activity) => ({
       id: activity.id,
       title: activity.title,
       type: activity.type as "video" | "survey",
@@ -671,21 +657,24 @@ export const getActivities = cache(async (): Promise<ActivityData[]> => {
       createdAt: activity.createdAt?.toISOString() || "",
       completedAt: activity.completedAt ?? null,
       isTemplate: activity.is_template,
-      _count:
-        typeof activity._count === "object" && "completions" in activity._count
-          ? activity._count.completions ?? 0
-          : 0, // ✅ Fixed `_count` issue
+      _count: activity._count?.completions ?? 0,
     }));
+
+    console.log(`[💾 ${new Date().toISOString()}] Caching activities for ${ACTIVITIES_CACHE_EXPIRATION} seconds...`);
+    await redis.set(ACTIVITIES_CACHE_KEY, formattedActivities, { ex: ACTIVITIES_CACHE_EXPIRATION });
+
+    return formattedActivities;
   } catch (error) {
-    console.error("❌ getActivities: Error fetching activities:", error);
+    console.error(`[❌ ${new Date().toISOString()}] getActivities: Error fetching activities:`, error);
+    Sentry.captureException(error); // ✅ Sentry captures this error
     return [];
   }
-});
+}
 
-export const createActivity = async (
-  data: CreateActivityData
-): Promise<CreateActivityResponse> => {
+export async function createActivity(data: CreateActivityData): Promise<CreateActivityResponse> {
   try {
+    console.log(`[🚀 ${new Date().toISOString()}] Creating new activity...`);
+
     const userId = await requireAuthUser();
     const internalUser = await prisma.user.findUniqueOrThrow({
       where: { employClerkUserId: userId },
@@ -696,20 +685,30 @@ export const createActivity = async (
       data: { ...data, userId: internalUser.id, is_template: true },
     });
 
+    console.log(`[🗑️ ${new Date().toISOString()}] Clearing activity cache after creation...`);
+
+    // ✅ Clear cache to ensure fresh data
+    await redis.del(ACTIVITIES_CACHE_KEY);
+
     revalidatePath("/dashboard/activities");
+    console.log(`[✅ ${new Date().toISOString()}] Activity created successfully.`);
 
     return { success: true };
   } catch (error) {
-    console.error("❌ createActivity: Error creating activity:", error);
+    console.error(`[❌ ${new Date().toISOString()}] createActivity: Error creating activity:`, error);
+    Sentry.captureException(error); // ✅ Sentry captures this error
     return { success: false, error: "Failed to create activity" };
   }
-};
+}
 
-export const updateActivity = async (
+
+export async function updateActivity(
   id: string,
   data: Partial<CreateActivityData>
-): Promise<CreateActivityResponse> => {
+): Promise<CreateActivityResponse> {
   try {
+    console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
+
     const userId = await requireAuthUser();
     const internalUser = await prisma.user.findUniqueOrThrow({
       where: { employClerkUserId: userId },
@@ -721,23 +720,39 @@ export const updateActivity = async (
       data,
     });
 
+    console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity update...`);
+
+    // ✅ Clear cache after update
+    await redis.del(ACTIVITIES_CACHE_KEY);
+    console.log(`[✅ ${new Date().toISOString()}] Activity ID: ${id} updated successfully.`);
+
     return { success: true };
   } catch (error) {
-    console.error("❌ updateActivity: Error updating activity:", error);
+    console.error(`[❌ ${new Date().toISOString()}] updateActivity: Error updating activity:`, error);
+    Sentry.captureException(error); // ✅ Sentry captures this error
     return { success: false, error: "Failed to update activity" };
   }
-};
+}
 
 export async function updateActivityStatus(activityId: string, status: string) {
+  
   await requireAdminAuth();
+  console.log(`[🔄 ${new Date().toISOString()}] Updating status of activity ID: ${activityId} to "${status}"`);
+
 
   const updatedActivity = await prisma.activity.update({
     where: { id: activityId },
     data: { status },
   });
 
-  activitiesCache.delete("activities"); // ✅ Invalidate cache
+  console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity status update...`);
+
+  // ✅ Clear cache after status update
+  await redis.del(ACTIVITIES_CACHE_KEY);
+
   revalidatePath("/dashboard/activities");
+
+  console.log(`[✅ ${new Date().toISOString()}] Activity status updated successfully.`);
 
   return updatedActivity;
 }
@@ -745,11 +760,19 @@ export async function updateActivityStatus(activityId: string, status: string) {
 export async function deleteActivity(activityId: string) {
   await requireAdminAuth(); // ✅ Ensures only admin users can delete
 
+  console.log(`[🗑️ ${new Date().toISOString()}] Deleting activity ID: ${activityId}`);
+
   await prisma.activity.delete({ where: { id: activityId } });
 
-  activitiesCache.delete(activityId); // ✅ Remove from cache
+  console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity deletion...`);
+  // ✅ Clear cache after deletion
+  await redis.del(ACTIVITIES_CACHE_KEY);
+
   revalidatePath("/admin/activities");
   revalidatePath("/dashboard/activities");
 
+  console.log(`[✅ ${new Date().toISOString()}] Activity ID: ${activityId} deleted successfully.`);
+
   return { success: true };
 }
+

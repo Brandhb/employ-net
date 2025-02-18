@@ -1,6 +1,8 @@
-import { NextResponse, NextRequest } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse, NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+import { isAdmin } from "@/app/actions/isAdmin";
+import * as Sentry from "@sentry/nextjs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +38,10 @@ export async function POST(request: NextRequest) {
 
     if (!activity) {
       console.error("❌ Activity not found:", body.activityId);
-      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Activity not found" },
+        { status: 404 }
+      );
     }
 
     console.log("✅ Activity found:", activity.title);
@@ -51,47 +56,52 @@ export async function POST(request: NextRequest) {
 
     if (existingCompletion) {
       console.warn("⚠️ User already completed this activity:", activity.id);
-      return NextResponse.json({ 
-        success: false, 
-        message: "You have already completed this activity." 
-      }, { status: 409 });
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You have already completed this activity.",
+        },
+        { status: 409 }
+      );
     }
 
     // ✅ Use Prisma transaction for atomic updates with activityCompletion
-    const [newCompletion, updatedUser, newLog, newNotification] = await prisma.$transaction([
-      prisma.activity_completions.create({
-        data: {
-          user_id: user.id,
-          activity_id: activity.id,
-          completed_at: new Date(),
-        },
-      }),
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          points_balance: { increment: activity.points },
-        },
-      }),
-      prisma.activityLog.create({
-        data: {
-          userId: user.id,
-          activityId: activity.id,
-          action: 'completed',
-          metadata: {
-            points: activity.points,
-            type: activity.type,
+    const [newCompletion, updatedUser, newLog, newNotification] =
+      await prisma.$transaction([
+        prisma.activity_completions.create({
+          data: {
+            user_id: user.id,
+            activity_id: activity.id,
+            completed_at: new Date(),
           },
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          userId: user.id,
-          title: 'Activity Completed',
-          message: `🎉 You earned ${activity.points} points for completing "${activity.title}"!`,
-          type: 'success',
-        },
-      }),
-    ]);
+        }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            points_balance: { increment: activity.points },
+          },
+        }),
+        prisma.activityLog.create({
+          data: {
+            userId: user.id,
+            activityId: activity.id,
+            action: "completed",
+            metadata: {
+              points: activity.points,
+              type: activity.type,
+            },
+          },
+        }),
+        prisma.notification.create({
+          data: {
+            userId: user.id,
+            title: "Activity Completed",
+            message: `🎉 You earned ${activity.points} points for completing "${activity.title}"!`,
+            type: "success",
+            userRole: (await isAdmin()) ? "admin" : "user",
+          },
+        }),
+      ]);
 
     console.log("✅ Activity completion recorded successfully!");
 
@@ -102,9 +112,13 @@ export async function POST(request: NextRequest) {
       log: newLog,
       notification: newNotification,
     });
-
   } catch (error) {
     console.error("❌ Error completing activity:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    Sentry.captureException(error); // ✅ Sentry captures this error
+
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

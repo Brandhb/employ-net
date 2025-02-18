@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { redis } from "@/lib/redis";
+import "@/lib/initAnalytics"; // ✅ Ensures BullMQ is running on the server
 
 interface AnalyticsData {
   totalRevenue: number;
@@ -11,20 +12,21 @@ interface AnalyticsData {
   averageEngagement: number;
 }
 
-import { cache } from "react";
+const CACHE_KEY = "analytics:data";
+const CACHE_EXPIRATION = 600; // 10 minutes
 
-// ✅ Cache analytics data to reduce redundant DB queries
-export const fetchAnalyticsData = cache(async (): Promise<AnalyticsData | null> => {
+export async function fetchAnalyticsData(): Promise<AnalyticsData | null> {
   try {
-    const { userId } = await auth(); // Ensure authenticated user
-
-    if (!userId) {
-      console.error("⛔ Unauthorized request - Missing userId");
-      return null;
+    // ✅ Check if analytics data is already in Redis
+    const cachedData = await redis.get(CACHE_KEY);
+    if (cachedData) {
+      console.log("🚀 Returning cached analytics data");
+      return cachedData as AnalyticsData;
     }
 
-    console.log("🔹 Fetching analytics data for:", userId);
+    console.log("📩 Fetching analytics from DB...");
 
+    // ✅ Fetch analytics from the database
     const [
       adInteractions,
       activities,
@@ -39,16 +41,20 @@ export const fetchAnalyticsData = cache(async (): Promise<AnalyticsData | null> 
       }),
     ]);
 
-    return {
-      totalRevenue: 0, // Calculate based on your revenue model
+    const analyticsData: AnalyticsData = {
+      totalRevenue: 0, // Update this based on your revenue model
       adImpressions: adInteractions,
-      adClicks: 0, // Calculate from click interactions
+      adClicks: 0, // Update based on click tracking logic
       completionRate: activities > 0 ? (completedActivities / activities) * 100 : 0,
       averageEngagement: totalEngagement._avg.duration || 0,
     };
+
+    // ✅ Store in Redis for 10 minutes
+    await redis.set(CACHE_KEY, analyticsData, { ex: CACHE_EXPIRATION });
+
+    return analyticsData;
   } catch (error) {
     console.error("❌ Error fetching analytics:", error);
     return null;
   }
-});
-
+}
