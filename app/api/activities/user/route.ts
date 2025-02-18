@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-
+import { clearUserActivityCache } from "@/lib/cache"; // ✅ Import from utility file
 
 // ✅ Helper function to fetch and cache activities
 async function fetchUserActivities(userId: string) {
@@ -71,10 +71,4 @@ export async function GET(req: NextRequest) {
     console.error("❌ Error fetching activities:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
-}
-
-// ✅ Function to clear cache when activity is completed
-export async function clearUserActivityCache(userId: string) {
-  const cacheKey = `user:activities:${userId}`;
-  await redis.del(cacheKey);
 }
