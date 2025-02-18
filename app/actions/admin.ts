@@ -312,18 +312,33 @@ export async function getAdminDashboardStats() {
   return stats;
 }
 
+interface AdminSettings {
+  id: string;
+  email: string;
+  notificationPreferences: {
+    dailySummary: boolean;
+    urgentAlerts: boolean;
+  };
+  adminNotificationPreferences: {
+    payoutNotifications: boolean;
+    verificationNotifications: boolean;
+    systemAlerts: boolean;
+  };
+}
+
+
 // ✅ Cache admin settings to reduce DB load
 const ADMIN_SETTINGS_CACHE_KEY = "adminSettings";
 const ADMIN_SETTINGS_CACHE_EXPIRATION = 600; // 10 minutes
 
-export async function getAdminSettings() {
+export async function getAdminSettings():Promise<AdminSettings> {
   await requireAdminAuth();
 
   // ✅ Check cache first
   const cachedSettings = await redis.get(ADMIN_SETTINGS_CACHE_KEY);
   if (cachedSettings) {
     console.log("✅ Returning cached admin settings");
-    return cachedSettings;
+    return cachedSettings as AdminSettings;
   }
   const { userId } = await auth(); 
 
@@ -351,7 +366,7 @@ export async function getAdminSettings() {
 
   await redis.set(ADMIN_SETTINGS_CACHE_KEY, settings, { ex: ADMIN_SETTINGS_CACHE_EXPIRATION });
 
-  return settings;
+  return settings as AdminSettings;
 }
 
 // ✅ Clear cache after updating admin settings

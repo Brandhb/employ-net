@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { clerkClient } from "@clerk/nextjs/server";
 import { redis } from "@/lib/redis";
+import { qstash } from "../lib/qstash";
 
 export async function getActivities(userId: string) {
   const cacheKey = `activities:active`;
@@ -62,14 +63,21 @@ export async function getRecentActivities(userId: string, limit = 5) {
   return activities;
 }
 
-export async function getUserStats(userId: string) {
+interface UserStats {
+  points: number;
+  completedActivities: number;
+  earnings: number;
+}
+
+
+export async function getUserStats(userId: string): Promise<UserStats> {
   const cacheKey = `user:${userId}:stats`;
 
   // ✅ Check Redis cache first
   const cachedStats = await redis.get(cacheKey);
   if (cachedStats) {
     console.log("🚀 Returning cached user stats");
-    return cachedStats;
+    return cachedStats as UserStats;
   }
 
   console.log("📩 Fetching user stats from DB...");
@@ -97,6 +105,7 @@ export async function getUserStats(userId: string) {
     _sum: { amount: true }
   });
 
+  // ✅ Ensure return object always has values
   const stats = {
     points: user?.points_balance ?? 0,
     completedActivities: user?._count.activities ?? 0,
@@ -109,67 +118,17 @@ export async function getUserStats(userId: string) {
   return stats;
 }
 
-export async function completeActivity(userId: string, activityId: string) {
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
 
-  const internalUser = await prisma.user.findUnique({
-    where: { employClerkUserId: userId }
+export async function queueCompleteActivity(userId: string, activityId: string) {
+  await qstash.publishJSON({
+    url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/qstash-complete-activity`,
+    body: { userId, activityId },
   });
 
-  if (!internalUser) throw new Error("User not found");
-
-  const activity = await prisma.activity.findUnique({
-    where: { id: activityId }
-  });
-
-  if (!activity) throw new Error("Activity not found");
-  if (activity.status === "completed") throw new Error("Activity already completed");
-
-  await prisma.$transaction([
-    prisma.activity.update({
-      where: { id: activityId },
-      data: {
-        status: "completed",
-        completedAt: new Date()
-      }
-    }),
-    prisma.user.update({
-      where: { id: internalUser.id },
-      data: {
-        points_balance: { increment: activity.points }
-      }
-    }),
-    prisma.activityLog.create({
-      data: {
-        userId: internalUser.id,
-        activityId,
-        action: "completed",
-        metadata: {
-          points: activity.points,
-          type: activity.type
-        }
-      }
-    }),
-    prisma.notification.create({
-      data: {
-        userId: internalUser.id,
-        title: "Activity Completed",
-        message: `You earned ${activity.points} points for completing ${activity.title}!`,
-        type: "success",
-        userRole: isAdmin ? "admin" : "user"
-      }
-    })
-  ]);
-
-  // ✅ Clear Redis Cache (force refresh)
-  await redis.del(`activities:active`);
-  await redis.del(`user:${userId}:stats`);
-  await redis.del(`user:${userId}:recentActivities`);
-
-  return { success: true };
+  console.log(`✅ Queued activity completion for user ${userId}, activity ${activityId}`);
+  return { success: true, message: "Activity completion request queued." };
 }
+
 
 export async function getActivityStats(userId: string) {
   const user = await prisma.user.findUnique({

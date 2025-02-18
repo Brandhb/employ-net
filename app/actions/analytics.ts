@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import "@/lib/initAnalytics"; // ✅ Ensures BullMQ is running on the server
 
 interface AnalyticsData {
   totalRevenue: number;

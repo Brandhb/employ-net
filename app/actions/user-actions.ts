@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { User } from "@/types";
 import { currentUser, } from "@clerk/nextjs/server";
 
 const CACHE_EXPIRATION = 300; // 5 minutes
@@ -107,14 +108,14 @@ export async function updateUserVerificationStep(userId: string, newStep: number
 }
 
 
-export const getDbUser = async (userId: string) => {
+export const getDbUser = async (userId: string): Promise<User> => {
   const cacheKey = `user:db:${userId}`;
 
   // ✅ Check Redis first
   const cachedUser = await redis.get(cacheKey);
   if (cachedUser) {
     console.log("🚀 Returning cached DB user for", userId);
-    return cachedUser;
+    return cachedUser as User;
   }
 
   console.log("📩 Fetching user from DB for", userId);
@@ -127,7 +128,7 @@ export const getDbUser = async (userId: string) => {
       await redis.set(cacheKey, dbUser, { ex: 600 }); // ✅ Cache for 10 minutes
     }
 
-    return dbUser;
+    return dbUser as unknown as User;
   } catch (error) {
     console.error("❌ Error fetching user from DB:", error);
     throw new Error("Failed to fetch user");

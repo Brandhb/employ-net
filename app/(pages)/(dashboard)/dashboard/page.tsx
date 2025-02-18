@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const stats = await getUserStats(userId);
+  const stats = await getUserStats(userId) || { points: 0, completedActivities: 0, earnings: 0 };
 
   return (
     <div className="flex-1 space-y-4">
