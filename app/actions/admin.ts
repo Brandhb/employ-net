@@ -536,7 +536,7 @@ export async function getPayoutRequests() {
               bankName: true,
               accountNumber: true,
               accountHolderName: true,
-              routingNumber: true,
+              bsb: true,
             },
           },
         },
