@@ -8,6 +8,7 @@ export const redis = new UpstashRedis({
 });
 
 // ✅ Use ioredis for BullMQ / Queue Management
+/*
 export const redisConnection = new Redis(process.env.UPSTASH_REDIS_URL!, {
   maxRetriesPerRequest: null, // Important for BullMQ
   enableReadyCheck: false, // Prevents waiting for a "ready" state
@@ -15,3 +16,4 @@ export const redisConnection = new Redis(process.env.UPSTASH_REDIS_URL!, {
     rejectUnauthorized: false, // Required for Upstash
   },
 });
+*/
