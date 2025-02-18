@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CreateActivityData } from "@/app/actions/admin";
+import { CreateActivityData } from "@/app/lib/types/admin";
 
 // ✅ Schema with `status`
 const formSchema = z.object({
