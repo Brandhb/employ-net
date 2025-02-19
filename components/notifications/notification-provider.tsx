@@ -1,15 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@clerk/nextjs";
 import { Notification } from "@prisma/client";
+import { supabase } from "@/lib/supabase";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -36,7 +32,6 @@ export function NotificationProvider({
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      debugger;
       if (!employClerkUserId) return;
 
       try {
@@ -136,7 +131,6 @@ export function NotificationProvider({
       console.error("Error marking all notifications as read:", error);
     }
   };
-debugger;
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (

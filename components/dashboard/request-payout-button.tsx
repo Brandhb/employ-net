@@ -36,6 +36,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
     if (userId && isOpen) {
       fetchBankAccount();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOpen]);
 
   const fetchBankAccount = async () => {
@@ -126,6 +127,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
 
         {showBankForm ? (
           <BankAccountForm 
+          existingAccount={bankAccount}
             onSuccess={() => {
               setShowBankForm(false);
               fetchBankAccount();

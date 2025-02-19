@@ -47,6 +47,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
 
     setIsLoading(true);
     try {
+      debugger
       // ✅ Ensure proper field mapping for Australian bank format
       const bankData = {
         bankName: values.bankName,

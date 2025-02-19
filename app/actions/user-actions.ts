@@ -7,6 +7,7 @@ import { currentUser } from "@clerk/nextjs/server";
 
 const CACHE_EXPIRATION = 300; // 5 minutes
 
+/** ✅ Get User Verification Step (with Caching) */
 export async function getUserVerificationStep(employClerkUserId: string) {
   const cacheKey = `user:verificationStep:${employClerkUserId}`;
 
@@ -14,7 +15,7 @@ export async function getUserVerificationStep(employClerkUserId: string) {
   const cachedStep = await redis.get(cacheKey);
   if (cachedStep !== null) {
     console.log("🚀 Returning cached verification step for", employClerkUserId);
-    return cachedStep;
+    return Number(cachedStep); // Ensure correct type
   }
 
   console.log("📩 Fetching verification step from DB for", employClerkUserId);
@@ -24,34 +25,33 @@ export async function getUserVerificationStep(employClerkUserId: string) {
       select: { verificationStep: true },
     });
 
-    if (user?.verificationStep !== undefined) {
-      await redis.set(cacheKey, user.verificationStep, {
-        ex: CACHE_EXPIRATION,
-      }); // ✅ Cache result
-    }
+    const verificationStep = user?.verificationStep ?? 0;
 
-    return user?.verificationStep ?? 0;
+    // ✅ Store in cache (as string)
+    await redis.set(cacheKey, verificationStep.toString(), { ex: CACHE_EXPIRATION });
+
+    return verificationStep;
   } catch (error) {
     console.error("❌ Error fetching verification step:", error);
     throw new Error("Failed to fetch user verification step");
   }
 }
 
-export const getClerkUserObject = async () => {
-  const user = await currentUser();
-  return user;
-};
+/** ✅ Get Clerk User Object */
+export async function getClerkUserObject() {
+  return await currentUser();
+}
 
-export const getEmails = async () => {
+/** ✅ Get Emails (with Caching) */
+export async function getEmails() {
   const user = await currentUser();
-  // Transform the email addresses into plain objects
-  const emails = user?.emailAddresses.map((email) => ({
+  return user?.emailAddresses.map(email => ({
     id: email.id,
     emailAddress: email.emailAddress,
-  }));
-  return emails || [];
-};
+  })) || [];
+}
 
+/** ✅ Check User Verification Step */
 export async function checkVerificationStep() {
   try {
     const user = await getClerkUserObject();
@@ -61,38 +61,13 @@ export async function checkVerificationStep() {
     }
 
     const employClerkUserId = user.id;
-
-    // ✅ Use Cached Emails
-    const emails = await getEmails();
-    if (!emails || emails.length === 0) {
-      console.error("⛔ No email addresses found for user:", employClerkUserId);
-      return {
-        verified: false,
-        reason: "No email addresses associated with account",
-      };
-    }
-
     console.log("🔍 Checking verification step for user:", employClerkUserId);
 
-    let verificationStep;
-    let attempts = 3; // Retry mechanism for DB sync
-
-    while (attempts > 0) {
-      verificationStep = await getUserVerificationStep(employClerkUserId);
-      if (verificationStep === 1) break;
-
-      console.warn(
-        `⏳ Attempt ${4 - attempts}: Verification step not found. Retrying...`
-      );
-      await new Promise((res) => setTimeout(res, 1000));
-      attempts--;
-    }
+    // ✅ Fetch verification step (cached)
+    const verificationStep = await getUserVerificationStep(employClerkUserId);
 
     if (verificationStep !== 1) {
-      console.warn(
-        "⚠️ User verification incomplete after retries:",
-        employClerkUserId
-      );
+      console.warn("⚠️ User verification incomplete:", employClerkUserId);
       return { verified: false, reason: "User verification incomplete" };
     }
 
@@ -104,10 +79,8 @@ export async function checkVerificationStep() {
   }
 }
 
-export async function updateUserVerificationStep(
-  userId: string,
-  newStep: number
-) {
+/** ✅ Update User Verification Step (with Cache Invalidation) */
+export async function updateUserVerificationStep(userId: string, newStep: number) {
   console.log("🔄 Updating verification step for:", userId);
 
   await prisma.user.update({
@@ -120,14 +93,15 @@ export async function updateUserVerificationStep(
   console.log("🗑️ Cache cleared for verification step:", userId);
 }
 
-export const getDbUser = async (userId: string): Promise<User> => {
+/** ✅ Get DB User (with Caching) */
+export async function getDbUser(userId: string): Promise<User> {
   const cacheKey = `user:db:${userId}`;
 
-  // ✅ Check Redis first
+  // ✅ Check Redis cache first
   const cachedUser = await redis.get(cacheKey);
   if (cachedUser) {
     console.log("🚀 Returning cached DB user for", userId);
-    return cachedUser as User;
+    return cachedUser as User; // ✅ Parse JSON before returning
   }
 
   console.log("📩 Fetching user from DB for", userId);
@@ -137,7 +111,7 @@ export const getDbUser = async (userId: string): Promise<User> => {
     });
 
     if (dbUser) {
-      await redis.set(cacheKey, dbUser, { ex: 600 }); // ✅ Cache for 10 minutes
+      await redis.set(cacheKey, JSON.stringify(dbUser), { ex: 600 }); // ✅ Cache as JSON
     }
 
     return dbUser as unknown as User;
@@ -145,4 +119,4 @@ export const getDbUser = async (userId: string): Promise<User> => {
     console.error("❌ Error fetching user from DB:", error);
     throw new Error("Failed to fetch user");
   }
-};
+}

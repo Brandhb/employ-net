@@ -6,7 +6,6 @@ import { createLogger } from "@/lib/logger";
 const logger = createLogger("notifications-mark-all");
 
 export async function POST() {
-  debugger;
   try {
     const { userId } = await auth();
 
