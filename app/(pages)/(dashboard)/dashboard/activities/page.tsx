@@ -84,7 +84,8 @@ export default function ActivitiesPage() {
   // ✅ Loading Placeholder
 if (!data) {
   return (
-    <div className="space-y-4">
+    <div className="flex-1 space-y-4">
+      <h2 className="text-3xl font-bold tracking-tight">Activities</h2>
       {[1, 2, 3].map((i) => (
         <Card key={i}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
