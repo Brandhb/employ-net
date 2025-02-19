@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Play, FileText, CheckCircle, RefreshCw, Clock, Loader2, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ✅ Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -81,17 +82,31 @@ export default function ActivitiesPage() {
   }
 
   // ✅ Loading Placeholder
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="h-48" />
-          </Card>
-        ))}
-      </div>
-    );
-  }
+if (!data) {
+  return (
+    <div className="space-y-4">
+      {[1, 2, 3].map((i) => (
+        <Card key={i}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div>
+              <Skeleton className="h-6 w-40 rounded-md" /> {/* Title Placeholder */}
+              <Skeleton className="h-4 w-24 mt-2 rounded-md" /> {/* Subtitle Placeholder */}
+            </div>
+            <Skeleton className="h-5 w-5 rounded-md" /> {/* Icon Placeholder */}
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-2 w-full rounded-md" /> {/* Progress Placeholder */}
+            <div className="flex justify-between items-center mt-3">
+              <Skeleton className="h-4 w-24 rounded-md" /> {/* % Completed Placeholder */}
+              <Skeleton className="h-8 w-20 rounded-md" /> {/* Button Placeholder */}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 
   const { activeActivities, completedActivities } = data;
 

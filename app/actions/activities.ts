@@ -94,28 +94,33 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     },
     select: {
       points_balance: true,
-      _count: {
-        select: {
-          activities: {
-            where: { status: "completed" },
-          },
-        },
-      },
+      id: true,
     },
   });
 
+  if (!user) {
+    console.error("❌ User not found in database");
+    throw new Error("User not found");
+  }
+
+  // ✅ Fetch completed activities from `activity_completions`
+  const completedActivitiesCount = await prisma.activity_completions.count({
+    where: { user_id: user.id },
+  });
+
+  // ✅ Fetch total earnings from completed payouts
   const totalEarnings = await prisma.payout.aggregate({
     where: {
-      user: { employClerkUserId: userId },
+      userId: user.id,
       status: "completed",
     },
     _sum: { amount: true },
   });
 
   // ✅ Ensure return object always has values
-  const stats = {
-    points: user?.points_balance ?? 0,
-    completedActivities: user?._count.activities ?? 0,
+  const stats: UserStats = {
+    points: user.points_balance ?? 0,
+    completedActivities: completedActivitiesCount ?? 0,
     earnings: totalEarnings._sum.amount ?? 0,
   };
 
@@ -124,6 +129,7 @@ export async function getUserStats(userId: string): Promise<UserStats> {
 
   return stats;
 }
+
 
 export async function queueCompleteActivity(
   userId: string,
