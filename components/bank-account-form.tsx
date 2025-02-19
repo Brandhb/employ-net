@@ -136,7 +136,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
               <FormControl>
                 <Input 
                   {...field} 
-                  type="password" 
+                  type="text" 
                   placeholder="Enter account number"
                   maxLength={9}
                   onChange={(e) => {

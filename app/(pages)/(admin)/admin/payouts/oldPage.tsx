@@ -169,66 +169,7 @@ export default function PayoutRequestsPage() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 space-y-4">
-        <h2 className="text-3xl font-bold tracking-tight">Payout Requests</h2>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Bank Account</TableHead>
-                  <TableHead>Requested</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[1, 2, 3].map((i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <div className="animate-pulse space-y-2">
-                        <div className="h-4 w-32 bg-muted rounded" />
-                        <div className="h-3 w-24 bg-muted rounded" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="animate-pulse">
-                        <div className="h-4 w-20 bg-muted rounded" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="animate-pulse space-y-2">
-                        <div className="h-4 w-48 bg-muted rounded" />
-                        <div className="h-4 w-36 bg-muted rounded" />
-                        <div className="h-4 w-40 bg-muted rounded" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="animate-pulse">
-                        <div className="h-4 w-28 bg-muted rounded" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="animate-pulse">
-                        <div className="h-9 w-24 bg-muted rounded" />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // ... rest of the component remains the same ...
 
   return (
     <div className="flex-1 space-y-4">

@@ -85,7 +85,7 @@ export async function updateBankAccount(
   data: BankAccountFormData
 ): Promise<Result<BankAccountFormData>> {
   try {
-    debugger;
+    
     logger.info("📝 Updating bank account", { userId });
 
     if (!userId) throw new ValidationError("User ID is required");
