@@ -42,10 +42,8 @@ export async function POST() {
       await prisma.notification.updateMany({
         where: {
           userId: userFromDB.id,
-          userRole: {
-            not: "admin",
-          },
           read: false,
+          OR: [{ userRole: "user" }, { userRole: null }],
         },
         data: {
           read: true,
