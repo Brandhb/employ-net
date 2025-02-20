@@ -16,7 +16,7 @@ export async function GET() {
     // ✅ Check Redis first
     let verificationStep = await redis.get(cacheKey);
 
-    if (verificationStep === null) {
+    if (verificationStep === null || verificationStep == 0) {
       console.log("⏳ Fetching verification step from DB...");
       const user = await prisma.user.findUnique({
         where: { employClerkUserId: userId },

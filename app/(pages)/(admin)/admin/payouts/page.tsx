@@ -185,6 +185,7 @@ export default function PayoutRequestsPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Bank Account</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -250,6 +251,7 @@ export default function PayoutRequestsPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Bank Account</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -292,6 +294,9 @@ export default function PayoutRequestsPage() {
                           </>
                         )}
                       </Button>
+                    </TableCell>
+                    <TableCell>
+                      {payout.status}
                     </TableCell>
                     <TableCell>
                       {new Date(payout.createdAt!).toLocaleString()}

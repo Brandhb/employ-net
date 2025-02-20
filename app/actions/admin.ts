@@ -26,7 +26,6 @@ interface User {
   verificationStatus: string;
 }
 
-
 // ✅ Ensure User is an Admin
 export async function requireAdminAuth(): Promise<string> {
   const { userId } = await auth();
@@ -90,11 +89,12 @@ export async function getAdminUsers() {
     verificationStatus: user.verification_status || "",
   }));
 
-  await redis.set(ADMIN_USERS_CACHE_KEY, formattedUsers, { ex: CACHE_EXPIRATION });
+  await redis.set(ADMIN_USERS_CACHE_KEY, formattedUsers, {
+    ex: CACHE_EXPIRATION,
+  });
 
   return formattedUsers;
 }
-
 
 // ✅ Function to clear cache when updating users
 export async function clearAdminUsersCache() {
@@ -196,7 +196,9 @@ export async function getAdminDashboardStatsBothWebsites() {
     revenueGrowth: Number(revenueGrowthRaw[0]?.growth || 0),
   };
 
-  await redis.set(DASHBOARD_CACHE_KEY, stats, { ex: DASHBOARD_CACHE_EXPIRATION });
+  await redis.set(DASHBOARD_CACHE_KEY, stats, {
+    ex: DASHBOARD_CACHE_EXPIRATION,
+  });
 
   return stats;
 }
@@ -326,12 +328,12 @@ interface AdminSettings {
   };
 }
 
-
 // ✅ Cache admin settings to reduce DB load
 const ADMIN_SETTINGS_CACHE_KEY = "adminSettings";
 const ADMIN_SETTINGS_CACHE_EXPIRATION = 600; // 10 minutes
 
-export async function getAdminSettings():Promise<AdminSettings> {
+export async function getAdminSettings(): Promise<AdminSettings> {
+  debugger;
   await requireAdminAuth();
 
   // ✅ Check cache first
@@ -340,7 +342,7 @@ export async function getAdminSettings():Promise<AdminSettings> {
     console.log("✅ Returning cached admin settings");
     return cachedSettings as AdminSettings;
   }
-  const { userId } = await auth(); 
+  const { userId } = await auth();
 
   // ✅ Fetch from DB
   const user = await prisma.user.findUniqueOrThrow({
@@ -356,15 +358,21 @@ export async function getAdminSettings():Promise<AdminSettings> {
   const settings = {
     ...user,
     notificationPreferences: user.notificationPreferences
-      ? JSON.parse(user.notificationPreferences.toLocaleString())
+      ? user.notificationPreferences
       : { dailySummary: true, urgentAlerts: true },
 
     adminNotificationPreferences: user.adminNotificationPreferences
-      ? JSON.parse(user.adminNotificationPreferences.toLocaleString())
-      : { payoutNotifications: true, verificationNotifications: true, systemAlerts: true },
+      ? user.adminNotificationPreferences
+      : {
+          payoutNotifications: true,
+          verificationNotifications: true,
+          systemAlerts: true,
+        },
   };
 
-  await redis.set(ADMIN_SETTINGS_CACHE_KEY, settings, { ex: ADMIN_SETTINGS_CACHE_EXPIRATION });
+  await redis.set(ADMIN_SETTINGS_CACHE_KEY, settings, {
+    ex: ADMIN_SETTINGS_CACHE_EXPIRATION,
+  });
 
   return settings as AdminSettings;
 }
@@ -372,7 +380,7 @@ export async function getAdminSettings():Promise<AdminSettings> {
 // ✅ Clear cache after updating admin settings
 export async function updateAdminSettings(newSettings: any) {
   await requireAdminAuth();
-  const { userId } = await auth(); 
+  const { userId } = await auth();
 
   await prisma.user.update({
     where: { employClerkUserId: userId || "" },
@@ -381,7 +389,6 @@ export async function updateAdminSettings(newSettings: any) {
 
   await redis.del(ADMIN_SETTINGS_CACHE_KEY);
 }
-
 
 ////////--------/
 
@@ -423,28 +430,30 @@ export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
   const analyticsData = {
     users: userStats.map((user) => ({
       verificationStatus: user.verification_status ?? "unknown",
-      _count: (user._count as {id?: number})?.id ?? 0,
+      _count: (user._count as { id?: number })?.id ?? 0,
       createdAt: new Date(),
     })),
 
     activities: activityStats.map((activity) => ({
       type: activity.type ?? "unknown",
       status: activity.status ?? "unknown",
-      _count: (activity._count as {id?: number})?.id ?? 0,
+      _count: (activity._count as { id?: number })?.id ?? 0,
       _sum: { points: activity._sum?.points ?? 0 },
       metadata: {},
     })),
 
     payouts: payoutStats.map((payout) => ({
       status: payout.status ?? "unknown",
-      _count: (payout._count as {id?: number})?.id ?? 0,
+      _count: (payout._count as { id?: number })?.id ?? 0,
       _sum: { amount: payout._sum?.amount ?? 0 },
       created_at: new Date(),
     })),
   };
 
   // ✅ Store result in Redis with expiration
-  await redis.set(ANALYTICS_BOTH_CACHE_KEY, analyticsData, { ex: ANALYTICS_BOTH_CACHE_EXPIRATION });
+  await redis.set(ANALYTICS_BOTH_CACHE_KEY, analyticsData, {
+    ex: ANALYTICS_BOTH_CACHE_EXPIRATION,
+  });
 
   return analyticsData;
 }
@@ -551,7 +560,7 @@ export async function getPayoutRequests() {
 
   // ✅ Fetch payout requests efficiently
   const payouts = await prisma.payout.findMany({
-    where: { status: { in: ["pending", "processing"] } },
+    where: { status: { in: ["pending", "on_the_way"] } },
     include: {
       user: {
         select: {
@@ -614,22 +623,28 @@ export async function processPayoutRequest(
         processedAt: new Date(),
       },
     }),
-
     prisma.notification.create({
       data: {
         userId: payout.userId,
         title: `Payout ${status === "on_the_way" ? "Processing" : status}`,
-        message: status === "on_the_way"
-          ? "Your payout is being processed."
-          : status === "completed"
-          ? `Your payout of $${payout.amount} has been sent.`
-          : `Your payout was rejected: ${notes || "No reason provided"}`,
+        message:
+          status === "on_the_way"
+            ? "Your payout is being processed."
+            : status === "completed"
+            ? `Your payout of $${payout.amount} has been sent.`
+            : `Your payout was rejected: ${notes || "No reason provided"}`,
         type: status === "rejected" ? "error" : "success",
       },
     }),
   ]);
 
+  // ✅ Clear Redis cache to force fetching new data next time
+  await redis.del(`payout:stats:${payout.userId}`);
+  await redis.del(`payout:history:${payout.userId}`);
+
   revalidatePath("/admin/payouts");
+
+  return { success: true };
 }
 
 
@@ -638,16 +653,22 @@ const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
 
 export async function getActivities(): Promise<ActivityData[]> {
   try {
-    console.log(`[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`);
-    
+    console.log(
+      `[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`
+    );
+
     // ✅ Check Redis cache first
     const cachedActivities = await redis.get(ACTIVITIES_CACHE_KEY);
     if (cachedActivities) {
-      console.log(`[✅ ${new Date().toISOString()}] Returning cached activities`);
+      console.log(
+        `[✅ ${new Date().toISOString()}] Returning cached activities`
+      );
       return cachedActivities as ActivityData[];
     }
 
-    console.log(`[🗂 ${new Date().toISOString()}] Fetching activities from database...`);
+    console.log(
+      `[🗂 ${new Date().toISOString()}] Fetching activities from database...`
+    );
     const activities = await prisma.activity.findMany({
       select: {
         id: true,
@@ -675,18 +696,27 @@ export async function getActivities(): Promise<ActivityData[]> {
       _count: activity._count?.completions ?? 0,
     }));
 
-    console.log(`[💾 ${new Date().toISOString()}] Caching activities for ${ACTIVITIES_CACHE_EXPIRATION} seconds...`);
-    await redis.set(ACTIVITIES_CACHE_KEY, formattedActivities, { ex: ACTIVITIES_CACHE_EXPIRATION });
+    console.log(
+      `[💾 ${new Date().toISOString()}] Caching activities for ${ACTIVITIES_CACHE_EXPIRATION} seconds...`
+    );
+    await redis.set(ACTIVITIES_CACHE_KEY, formattedActivities, {
+      ex: ACTIVITIES_CACHE_EXPIRATION,
+    });
 
     return formattedActivities;
   } catch (error) {
-    console.error(`[❌ ${new Date().toISOString()}] getActivities: Error fetching activities:`, error);
+    console.error(
+      `[❌ ${new Date().toISOString()}] getActivities: Error fetching activities:`,
+      error
+    );
     Sentry.captureException(error); // ✅ Sentry captures this error
     return [];
   }
 }
 
-export async function createActivity(data: CreateActivityData): Promise<CreateActivityResponse> {
+export async function createActivity(
+  data: CreateActivityData
+): Promise<CreateActivityResponse> {
   try {
     console.log(`[🚀 ${new Date().toISOString()}] Creating new activity...`);
 
@@ -700,22 +730,28 @@ export async function createActivity(data: CreateActivityData): Promise<CreateAc
       data: { ...data, userId: internalUser.id, is_template: true },
     });
 
-    console.log(`[🗑️ ${new Date().toISOString()}] Clearing activity cache after creation...`);
+    console.log(
+      `[🗑️ ${new Date().toISOString()}] Clearing activity cache after creation...`
+    );
 
     // ✅ Clear cache to ensure fresh data
     await redis.del(ACTIVITIES_CACHE_KEY);
 
     revalidatePath("/dashboard/activities");
-    console.log(`[✅ ${new Date().toISOString()}] Activity created successfully.`);
+    console.log(
+      `[✅ ${new Date().toISOString()}] Activity created successfully.`
+    );
 
     return { success: true };
   } catch (error) {
-    console.error(`[❌ ${new Date().toISOString()}] createActivity: Error creating activity:`, error);
+    console.error(
+      `[❌ ${new Date().toISOString()}] createActivity: Error creating activity:`,
+      error
+    );
     Sentry.captureException(error); // ✅ Sentry captures this error
     return { success: false, error: "Failed to create activity" };
   }
 }
-
 
 export async function updateActivity(
   id: string,
@@ -735,39 +771,50 @@ export async function updateActivity(
       data,
     });
 
-    console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity update...`);
+    console.log(
+      `[🗑️ ${new Date().toISOString()}] Clearing cache after activity update...`
+    );
 
     // ✅ Clear cache after update
     await redis.del(ACTIVITIES_CACHE_KEY);
-    console.log(`[✅ ${new Date().toISOString()}] Activity ID: ${id} updated successfully.`);
+    console.log(
+      `[✅ ${new Date().toISOString()}] Activity ID: ${id} updated successfully.`
+    );
 
     return { success: true };
   } catch (error) {
-    console.error(`[❌ ${new Date().toISOString()}] updateActivity: Error updating activity:`, error);
+    console.error(
+      `[❌ ${new Date().toISOString()}] updateActivity: Error updating activity:`,
+      error
+    );
     Sentry.captureException(error); // ✅ Sentry captures this error
     return { success: false, error: "Failed to update activity" };
   }
 }
 
 export async function updateActivityStatus(activityId: string, status: string) {
-  
   await requireAdminAuth();
-  console.log(`[🔄 ${new Date().toISOString()}] Updating status of activity ID: ${activityId} to "${status}"`);
-
+  console.log(
+    `[🔄 ${new Date().toISOString()}] Updating status of activity ID: ${activityId} to "${status}"`
+  );
 
   const updatedActivity = await prisma.activity.update({
     where: { id: activityId },
     data: { status },
   });
 
-  console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity status update...`);
+  console.log(
+    `[🗑️ ${new Date().toISOString()}] Clearing cache after activity status update...`
+  );
 
   // ✅ Clear cache after status update
   await redis.del(ACTIVITIES_CACHE_KEY);
 
   revalidatePath("/dashboard/activities");
 
-  console.log(`[✅ ${new Date().toISOString()}] Activity status updated successfully.`);
+  console.log(
+    `[✅ ${new Date().toISOString()}] Activity status updated successfully.`
+  );
 
   return updatedActivity;
 }
@@ -775,19 +822,24 @@ export async function updateActivityStatus(activityId: string, status: string) {
 export async function deleteActivity(activityId: string) {
   await requireAdminAuth(); // ✅ Ensures only admin users can delete
 
-  console.log(`[🗑️ ${new Date().toISOString()}] Deleting activity ID: ${activityId}`);
+  console.log(
+    `[🗑️ ${new Date().toISOString()}] Deleting activity ID: ${activityId}`
+  );
 
   await prisma.activity.delete({ where: { id: activityId } });
 
-  console.log(`[🗑️ ${new Date().toISOString()}] Clearing cache after activity deletion...`);
+  console.log(
+    `[🗑️ ${new Date().toISOString()}] Clearing cache after activity deletion...`
+  );
   // ✅ Clear cache after deletion
   await redis.del(ACTIVITIES_CACHE_KEY);
 
   revalidatePath("/admin/activities");
   revalidatePath("/dashboard/activities");
 
-  console.log(`[✅ ${new Date().toISOString()}] Activity ID: ${activityId} deleted successfully.`);
+  console.log(
+    `[✅ ${new Date().toISOString()}] Activity ID: ${activityId} deleted successfully.`
+  );
 
   return { success: true };
 }
-
