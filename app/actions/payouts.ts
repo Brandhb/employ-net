@@ -88,12 +88,12 @@ export async function requestPayout(userId: string, amount: number) {
   if (!user) throw new Error("User not found");
   if (!user.bankAccounts[0]) throw new Error("Bank account required");
 
-  const pointsNeeded = amount * 10; // Convert dollars to points
+  // Correct conversion: 100 points = $1, so multiply dollars by 100
+  const pointsNeeded = amount * 100; 
   if (user.points_balance && user.points_balance < pointsNeeded) {
     throw new Error("Insufficient points balance");
   }
 
-  // ✅ Using Prisma transactions for atomic updates
   const [payout] = await prisma.$transaction([
     prisma.payout.create({
       data: { userId: user.id, amount, status: "pending" },
@@ -113,23 +113,6 @@ export async function requestPayout(userId: string, amount: number) {
     }),
   ]);
 
-  /*
-  // ✅ Commented out Supabase real-time update for now
-  // const { data, error } = await supabase
-  //   .from("payout")
-  //   .insert([{ userId: user.id, amount, status: "pending" }]) // ✅ Use array for proper insertion
-  //   .select(); // ✅ Fetch inserted row to confirm
-
-  // if (error) {
-  //   console.error("❌ Supabase insert error:", error.message || error);
-  //   throw new Error(
-  //     `Failed to notify Supabase: ${error.message || "Unknown error"}`
-  //   );
-  // }
-
-  // console.log("✅ Supabase insert success:", data);
-  */
-
   // ✅ Clear Redis cache
   await redis.del(`payout:stats:${userId}`);
   await redis.del(`payout:history:${userId}`);
@@ -138,3 +121,4 @@ export async function requestPayout(userId: string, amount: number) {
   
   return payout;
 }
+
