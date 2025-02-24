@@ -91,6 +91,7 @@ export async function createNotification({
           title,
           message,
           type,
+          userRole: isAdmin ? "admin" : "user"
         },
       });
     }

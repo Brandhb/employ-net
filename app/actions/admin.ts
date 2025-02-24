@@ -634,6 +634,7 @@ export async function processPayoutRequest(
             ? `Your payout of $${payout.amount} has been sent.`
             : `Your payout was rejected: ${notes || "No reason provided"}`,
         type: status === "rejected" ? "error" : "success",
+        userRole: "admin"
       },
     }),
   ]);
