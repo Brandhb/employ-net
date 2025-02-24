@@ -1,6 +1,8 @@
 import './globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from 'next/font/google';
+import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google'
+
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 
@@ -48,6 +50,8 @@ export default function RootLayout({
           >
             {children}
             <Toaster />
+            <GoogleAnalytics gaId="G-2GNZJ681NL" />
+            <GoogleTagManager gtmId='G-2GNZJ681NL' />
           </ThemeProvider>
         </body>
       </html>
