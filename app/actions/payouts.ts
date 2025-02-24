@@ -79,7 +79,7 @@ export async function getPayoutHistory(
 }
 
 export async function requestPayout(userId: string, amount: number) {
-  debugger;
+ // debugger;
   const user = await prisma.user.findUnique({
     where: { employClerkUserId: userId },
     include: { bankAccounts: true },
