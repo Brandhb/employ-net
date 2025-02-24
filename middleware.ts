@@ -42,27 +42,28 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   // ✅ Handle Dashboard Access & Verification Check
-  if (isDashboardRoute(req)) {
-    if (!isAuthenticated) {
-      console.warn("❌ User not authenticated, redirecting...");
-      return redirectToSignIn();
-    }
-
-    // ✅ Check cached verification step to reduce DB load
-    const cacheKey = `user:verificationStep:${userId}`;
-    let verificationStep = await redis.get(cacheKey);
-    if (verificationStep !== null) {
-      if (Number(verificationStep) === 0) {
-        console.warn("❌ User verification incomplete, redirecting...");
-        return NextResponse.redirect("https://docs-here.com/account-verification");
-      }
-      return NextResponse.next(); // ✅ Allow access if Redis has verification data
-    }
-  
-    console.log("⏳ Verification step not in cache, sending to loading page...");
-    return NextResponse.redirect(new URL("/loading-page", req.url)); // ✅ Send to loading page for DB check 
-    
+if (isDashboardRoute(req)) {
+  if (!isAuthenticated) {
+    console.warn("❌ User not authenticated, redirecting...");
+    return redirectToSignIn();
   }
+
+  const cacheKey = `user:verificationStep:${userId}`;
+  let cachedValue = await redis.get(cacheKey);
+
+  // If no cache exists, or if the cached value is "0", redirect to loading page
+  if (cachedValue === null || Number(cachedValue) === 0) {
+    if (cachedValue !== null) {
+      console.warn("❌ Cached verification step is 0, sending to loading page for fresh check");
+    } else {
+      console.log("⏳ Verification step not in cache, sending to loading page...");
+    }
+    return NextResponse.redirect(new URL("/loading-page", req.url));
+  }
+
+  // Otherwise, allow access if verificationStep is non-zero
+  return NextResponse.next();
+}
 
   // ✅ Handle Admin Route Protection
   if (isAdminRoute(req)) {
