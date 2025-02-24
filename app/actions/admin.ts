@@ -333,7 +333,6 @@ const ADMIN_SETTINGS_CACHE_KEY = "adminSettings";
 const ADMIN_SETTINGS_CACHE_EXPIRATION = 600; // 10 minutes
 
 export async function getAdminSettings(): Promise<AdminSettings> {
-  debugger;
   await requireAdminAuth();
 
   // ✅ Check cache first
