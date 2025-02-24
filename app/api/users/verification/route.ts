@@ -5,7 +5,6 @@ import { redis } from "@/lib/redis"; // ✅ Cache layer
 
 export async function GET() {
   try {
-    
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,21 +12,16 @@ export async function GET() {
 
     const cacheKey = `user:verificationStep:${userId}`;
 
-    // ✅ Check Redis first
-    let verificationStep = await redis.get(cacheKey);
+    console.log("⏳ Fetching verification step from DB...");
+    const user = await prisma.user.findUnique({
+      where: { employClerkUserId: userId },
+      select: { verificationStep: true },
+    });
 
-    if (verificationStep === null || verificationStep == 0) {
-      console.log("⏳ Fetching verification step from DB...");
-      const user = await prisma.user.findUnique({
-        where: { employClerkUserId: userId },
-        select: { verificationStep: true },
-      });
+    const verificationStep = user?.verificationStep ?? 0; // Default to 0
 
-      verificationStep = user?.verificationStep ?? 0; // Default to 0
-
-      // ✅ Store in Redis (Cache for 10 minutes)
-      await redis.set(cacheKey, verificationStep);
-    }
+    // ✅ Store in Redis (Cache for 10 minutes)
+    await redis.set(cacheKey, verificationStep);
 
     return NextResponse.json({ verificationStep });
   } catch (error) {
