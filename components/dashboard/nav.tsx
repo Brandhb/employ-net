@@ -34,11 +34,11 @@ const items = [
     href: "/dashboard/payouts",
     icon: DollarSign,
   },
-  {
+  /*{
     title: "Verification",
     href: "/dashboard/verification",
     icon: ShieldCheck,
-  },
+  },*/
   {
     title: "Settings",
     href: "/dashboard/settings",

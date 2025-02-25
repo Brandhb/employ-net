@@ -35,7 +35,7 @@ export default function DashboardLayout({
     { title: "Opportunities", href: "/dashboard/rewards", icon: Trophy },
     { title: "Tasks", href: "/dashboard/activities", icon: ClipboardList },
     { title: "Earnings", href: "/dashboard/payouts", icon: DollarSign },
-    { title: "Verification", href: "/dashboard/verification", icon: ShieldCheck },
+   /* { title: "Verification", href: "/dashboard/verification", icon: ShieldCheck },*/
     { title: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 

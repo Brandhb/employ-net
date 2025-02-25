@@ -6,7 +6,6 @@ import { useAuth } from "@clerk/nextjs";
 import { Notification } from "@prisma/client";
 import { supabase } from "@/lib/supabase";
 
-
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
@@ -31,28 +30,26 @@ export function NotificationProvider({
   const { userId: employClerkUserId } = useAuth();
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!employClerkUserId) return;
+    if (!employClerkUserId) return;
 
+    // ✅ Fetch notifications from API
+    const fetchNotifications = async () => {
       try {
         const response = await fetch(`/api/notifications/stream`);
         if (!response.ok) throw new Error("Failed to fetch notifications");
         const data = await response.json();
         setNotifications(data.notifications);
       } catch (error) {
-        console.error("Error fetching notifications:", error);
+        console.error("❌ Error fetching notifications:", error);
       }
     };
 
     fetchNotifications();
-  }, [employClerkUserId]);
 
-  useEffect(() => {
-    if (!employClerkUserId) return;
+    console.log("🔔 Subscribing to real-time notifications...");
 
-    console.log("🔔 Subscribing to real-time notifications");
-
-    const subscription = supabase
+    // ✅ Supabase Realtime Listener (No filter, filtering inside payload)
+    const channel = supabase
       .channel("realtime_notifications")
       .on(
         "postgres_changes",
@@ -60,39 +57,41 @@ export function NotificationProvider({
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `userId=eq.${employClerkUserId}`,
         },
         (payload) => {
           console.log("📩 New notification received:", payload.new);
-          setNotifications((prev) => [
-            {
-              id: payload.new.id,
-              userId: payload.new.userId,
-              title: payload.new.title,
-              message: payload.new.message,
-              type: payload.new.type,
-              read: payload.new.read ?? false, // Ensure a default value
-              createdAt: payload.new.createdAt
-                ? new Date(payload.new.createdAt)
-                : null, // Convert to Date
-              updated_at: payload.new.updatedAt,
-              userRole: payload.new.userRole
-            },
-            ...prev,
-          ]);
 
-          toast({
-            title: payload.new.title,
-            description: payload.new.message,
-            variant: payload.new.type === "error" ? "destructive" : "default",
-          });
+          // ✅ Filter updates for only the current user
+          if (payload.new.employClerkUserId === employClerkUserId) {
+            console.log("✅ Notification belongs to current user:", payload.new.id);
+            setNotifications((prev) => [
+              {
+                id: payload.new.id,
+                userId: payload.new.userId,
+                title: payload.new.title,
+                message: payload.new.message,
+                type: payload.new.type,
+                read: payload.new.read ?? false, // Ensure a default value
+                createdAt: payload.new.createdAt ? new Date(payload.new.createdAt) : null, // Convert to Date
+                updated_at: payload.new.updatedAt,
+                userRole: payload.new.userRole,
+              },
+              ...prev,
+            ]);
+
+            toast({
+              title: payload.new.title,
+              description: payload.new.message,
+              variant: payload.new.type === "error" ? "destructive" : "default",
+            });
+          }
         }
       )
       .subscribe();
 
     return () => {
-      console.log("🔴 Unsubscribing from real-time notifications");
-      supabase.removeChannel(subscription);
+      console.log("🔴 Unsubscribing from real-time notifications...");
+      supabase.removeChannel(channel);
     };
   }, [employClerkUserId, toast]);
 
@@ -106,13 +105,11 @@ export function NotificationProvider({
 
       setNotifications((prev) =>
         prev.map((notification) =>
-          notification.id === id
-            ? { ...notification, read: true }
-            : notification
+          notification.id === id ? { ...notification, read: true } : notification
         )
       );
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error("❌ Error marking notification as read:", error);
     }
   };
 
@@ -128,9 +125,10 @@ export function NotificationProvider({
         prev.map((notification) => ({ ...notification, read: true }))
       );
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      console.error("❌ Error marking all notifications as read:", error);
     }
   };
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (

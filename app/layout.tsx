@@ -5,6 +5,7 @@ import { GoogleAnalytics, GoogleTagManager } from '@next/third-parties/google'
 
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
+import { InformationalBanner } from '@/components/ui/Informational-banner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -49,6 +50,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <InformationalBanner />
             <Toaster />
             <GoogleAnalytics gaId="G-2GNZJ681NL" />
             <GoogleTagManager gtmId='G-2GNZJ681NL' />

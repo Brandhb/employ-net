@@ -1,15 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
-import { redis } from "@/lib/redis"; // ✅ Use Redis to cache verification status
 import {
   generalRateLimit,
   apiRateLimit,
   adminRateLimit,
 } from "@/lib/rate-limit";
+import { redis } from "@/lib/redis"; // ✅ Use Redis to cache verification status
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
-const isActivitiesRoute = createRouteMatcher(["/dashboard/activities(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
@@ -42,26 +41,29 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // ✅ Block access to `/dashboard/activities/*` for unverified users
-  if (isActivitiesRoute(req)) {
-    //debugger;
-    if (!isAuthenticated) {
-      console.warn("❌ User not authenticated, redirecting...");
-      return redirectToSignIn();
-    }
-
-    const cacheKey = `user:verificationStep:${userId}`;
-    let verificationStep = await redis.get(cacheKey);
-
-    if (verificationStep === null || Number(verificationStep) === 0) {
-      console.warn(
-        "❌ User is unverified! Redirecting to /dashboard..."
-      );
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-
-    console.log("✅ User is verified. Access granted.");
+  // ✅ Handle Dashboard Access & Verification Check
+if (isDashboardRoute(req)) {
+  if (!isAuthenticated) {
+    console.warn("❌ User not authenticated, redirecting...");
+    return redirectToSignIn();
   }
+
+  const cacheKey = `user:verificationStep:${userId}`;
+  let cachedValue = await redis.get(cacheKey);
+
+  // If no cache exists, or if the cached value is "0", redirect to loading page
+  if (cachedValue === null || Number(cachedValue) === 0) {
+    if (cachedValue !== null) {
+      console.warn("❌ Cached verification step is 0, sending to loading page for fresh check");
+    } else {
+      console.log("⏳ Verification step not in cache, sending to loading page...");
+    }
+    return NextResponse.redirect(new URL("/loading-page", req.url));
+  }
+
+  // Otherwise, allow access if verificationStep is non-zero
+  return NextResponse.next();
+}
 
   // ✅ Handle Admin Route Protection
   if (isAdminRoute(req)) {
@@ -87,7 +89,7 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    "/((?!api/webhooks/clerk|_next|.*\\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|otf|eot|mp4|avi|mov|csv|txt|json|xml|webmanifest)).*)",
+    "/((?!api/webhooks/clerk|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };

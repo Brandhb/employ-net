@@ -28,12 +28,12 @@ interface Reward {
 const rewards: Reward[] = [
   {
     title: "Amazon Gift Card",
-    points: 500,
+    points: 15000,
     description: "Get a $5 Amazon Gift Card",
   },
   {
     title: "PayPal Cash",
-    points: 1000,
+    points: 15000,
     description: "Get $10 PayPal Cash",
   },
   {
