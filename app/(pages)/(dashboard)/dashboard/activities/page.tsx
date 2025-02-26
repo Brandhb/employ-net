@@ -1,24 +1,17 @@
 "use client";
 
-import useSWR from "swr";
+import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { createClient } from "@supabase/supabase-js";
+import { ActivityCard } from "@/components/activity-card";
+import { VerificationDialogs } from "@/components/verification-dialogs";
+import { RefreshCw, Clock, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Play, FileText, CheckCircle, RefreshCw, Clock, Loader2, AlertTriangle } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-
-// ✅ Fetcher function for SWR
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) {
-    if (res.status === 429) throw new Error("Rate limit exceeded");
-    throw new Error("Failed to fetch activities");
-  }
-  return res.json();
-};
+import { startVerificationTask } from "@/app/actions/admin/start-verification-task";
+import { confirmVerificationTask } from "@/app/actions/admin/confirm-verification-task";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/hooks/use-toast";
 
 interface Activity {
   id: string;
@@ -27,167 +20,188 @@ interface Activity {
   points: number;
   status: string;
   completedAt: string | null;
+  testUrl?: string;
 }
 
 export default function ActivitiesPage() {
   const router = useRouter();
   const { userId } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // ✅ Use SWR for client-side caching & auto revalidation every 5 min
-  const { data, error, isValidating, mutate } = useSWR(
-    userId ? "/api/activities/user" : null,
-    fetcher,
-    { refreshInterval: 300000 } // Auto-refresh every 5 minutes
+  const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
+  const [confirmTask, setConfirmTask] = useState<Activity | null>(null);
+  const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
+    []
   );
+  const [error, setError] = useState<string | null>(null);
+
+  // ✅ Fetch Initial Data from API
+  useEffect(() => {
+    if (!userId) return;
+
+    const fetchActivities = async () => {
+      try {
+        const res = await fetch("/api/activities/user");
+        if (!res.ok) throw new Error("Failed to fetch activities");
+        const data = await res.json();
+
+        setActiveActivities(data.activeActivities || []);
+        setCompletedActivities(data.completedActivities || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      }
+    };
+
+    fetchActivities();
+  }, [userId]);
+
+  // ✅ Subscribe to Supabase Realtime Separately
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel("realtime-activities")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "activities" },
+        (payload) => {
+          console.log("🔄 Realtime Update:", payload);
+          toast({
+            title: "New Activity",
+            description: "New activity has beeen added by Employ-Net"
+          })
+          // Ensure payload.new is typed correctly
+          const updatedActivity = payload.new as Activity;
+
+          setActiveActivities((prev: Activity[]) =>
+            prev.map((activity) =>
+              activity.id === updatedActivity.id ? updatedActivity : activity
+            )
+          );
+
+          setCompletedActivities((prev: Activity[]) =>
+            prev.map((activity) =>
+              activity.id === updatedActivity.id ? updatedActivity : activity
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
 
   // ✅ Handle Refresh Click
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await mutate(); // ✅ Re-fetch data manually
-    setIsRefreshing(false);
+    try {
+      const res = await fetch("/api/activities/user");
+      if (!res.ok) throw new Error("Failed to fetch activities");
+      const data = await res.json();
+
+      setActiveActivities(data.activeActivities || []);
+      setCompletedActivities(data.completedActivities || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // ✅ Handle Task Start
+  const handleStartVerification = async () => {
+    if (selectedTask) {
+      await startVerificationTask(selectedTask.id);
+      setSelectedTask(null);
+    }
+  };
+
+  // ✅ Handle Task Confirmation
+  const handleConfirmVerification = async () => {
+    if (confirmTask) {
+      await confirmVerificationTask(confirmTask.id);
+      setConfirmTask(null);
+    }
   };
 
   // ✅ Handle Activity Click
   const handleActivityClick = (activity: Activity) => {
     if (activity.status === "completed") return;
-    const path = `/dashboard/activities/${activity.type}/${activity.id}`;
-    router.push(path);
+
+    if (activity.type === "verification") {
+      if (activity.status === "ready") {
+        setConfirmTask(activity);
+      } else {
+        setSelectedTask(activity);
+      }
+    } else {
+      router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
+    }
   };
 
-  // ✅ Improved Error Handling
+  // ✅ Error Handling
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]">
         <AlertTriangle className="h-12 w-12 text-red-500" />
-        {error.message === "Rate limit exceeded" ? (
-          <>
-            <h3 className="text-xl font-semibold">Too Many Requests</h3>
-            <p className="text-muted-foreground">
-              You’ve hit the request limit. Please wait a moment before trying again.
-            </p>
-          </>
-        ) : (
-          <>
-            <h3 className="text-xl font-semibold">Error Loading Activities</h3>
-            <p className="text-muted-foreground">Something went wrong. Please try again later.</p>
-          </>
-        )}
+        <h3 className="text-xl font-semibold">Error Loading Activities</h3>
+        <p className="text-muted-foreground">{error}</p>
         <Button onClick={handleRefresh} disabled={isRefreshing}>
-          {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          {isRefreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
           Retry
         </Button>
       </div>
     );
   }
 
-  // ✅ Loading Placeholder
-if (!data) {
-  return (
-    <div className="flex-1 space-y-4">
-      <h2 className="text-3xl font-bold tracking-tight">Activities</h2>
-      {[1, 2, 3].map((i) => (
-        <Card key={i}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <Skeleton className="h-6 w-40 rounded-md" /> {/* Title Placeholder */}
-              <Skeleton className="h-4 w-24 mt-2 rounded-md" /> {/* Subtitle Placeholder */}
-            </div>
-            <Skeleton className="h-5 w-5 rounded-md" /> {/* Icon Placeholder */}
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-2 w-full rounded-md" /> {/* Progress Placeholder */}
-            <div className="flex justify-between items-center mt-3">
-              <Skeleton className="h-4 w-24 rounded-md" /> {/* % Completed Placeholder */}
-              <Skeleton className="h-8 w-20 rounded-md" /> {/* Button Placeholder */}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-
-  const { activeActivities, completedActivities } = data;
-
   return (
     <div className="flex-1 space-y-4">
       <h2 className="text-3xl font-bold tracking-tight">Activities</h2>
 
-      {/* Active Activities Section */}
-      {activeActivities.length > 0 ? (
+      {activeActivities.length > 0 && (
         <div className="grid gap-4">
-          {activeActivities.map((activity: Activity) => (
-            <Card key={activity.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div>
-                  <CardTitle className="text-lg">{activity.title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    {activity.type} • {activity.points} points
-                  </p>
-                </div>
-                {activity.type === "video" ? (
-                  <Play className="h-5 w-5 text-muted-foreground" />
-                ) : activity.type === "survey" ? (
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                ) : (
-                  <CheckCircle className="h-5 w-5 text-muted-foreground" />
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Progress value={0} className="h-2" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">0% Complete</span>
-                    <Button onClick={() => handleActivityClick(activity)}>Start</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {activeActivities.map((activity) => (
+            <ActivityCard
+              key={activity.id}
+              activity={activity}
+              onClick={handleActivityClick}
+            />
           ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]">
-          <CheckCircle className="h-12 w-12 text-green-500" />
-          <h3 className="text-xl font-semibold">No More Activities 🎉</h3>
-          <p className="text-muted-foreground">You have completed all tasks. Check back later for new activities.</p>
-          <Button onClick={handleRefresh} disabled={isRefreshing}>
-            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh
-          </Button>
         </div>
       )}
 
-      {/* Recent Activities Section */}
       {completedActivities.length > 0 && (
         <div className="mt-6">
           <h3 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Clock className="h-5 w-5 text-muted-foreground" /> Recent Activities
+            <Clock className="h-5 w-5 text-muted-foreground" /> Recent
+            Activities
           </h3>
           <div className="grid gap-4 mt-4">
-            {completedActivities.map((activity: Activity) => (
-              <Card key={activity.id} className="opacity-80">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <div>
-                    <CardTitle className="text-lg">{activity.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {activity.type} • {activity.points} points
-                    </p>
-                  </div>
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Completed on:{" "}
-                    {activity.completedAt ? new Date(activity.completedAt).toLocaleDateString() : "Unknown"}
-                  </p>
-                </CardContent>
-              </Card>
+            {completedActivities.map((activity) => (
+              <ActivityCard
+                key={activity.id}
+                activity={activity}
+                onClick={handleActivityClick}
+              />
             ))}
           </div>
         </div>
       )}
+
+      <VerificationDialogs
+        selectedTask={selectedTask}
+        confirmTask={confirmTask}
+        onStartVerification={handleStartVerification}
+        onConfirmVerification={handleConfirmVerification}
+        setSelectedTask={setSelectedTask}
+        setConfirmTask={setConfirmTask}
+      />
     </div>
   );
 }

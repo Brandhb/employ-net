@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UserCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import confetti from "canvas-confetti"; // 🎉 Import confetti
 
 export const InformationalBanner = () => {
   const { user } = useUser();
@@ -60,13 +61,48 @@ export const InformationalBanner = () => {
               }),
             });
 
-            // ✅ Show banner if verification resets to 0
+            // ✅ Show warning toast if verification resets to 0
             if (payload.new.verificationStep === 0) {
               toast({
                 title: "⚠️ Verification Needed",
                 description: "Your identity verification has been reset. Please verify again!",
                 variant: "destructive",
               });
+            }
+
+            // ✅ 🎉 Confetti Effect for Verification Success
+            if (payload.new.verificationStep === 1) {
+              toast({
+                title: "✅ Verified",
+                description: "Your identity verification has been successfully completed!",
+              });
+
+              const end = Date.now() + 3 * 1000; // 3 seconds of confetti
+              const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
+
+              const frame = () => {
+                if (Date.now() > end) return;
+                confetti({
+                  particleCount: 3,
+                  angle: 60,
+                  spread: 55,
+                  startVelocity: 60,
+                  origin: { x: 0, y: 0.5 },
+                  colors: colors,
+                });
+                confetti({
+                  particleCount: 3,
+                  angle: 120,
+                  spread: 55,
+                  startVelocity: 60,
+                  origin: { x: 1, y: 0.5 },
+                  colors: colors,
+                });
+
+                requestAnimationFrame(frame);
+              };
+
+              frame(); // 🎉 Trigger confetti
             }
           }
         }

@@ -21,3 +21,19 @@ export async function sendJobFailureAlert(jobName: string, errorMessage: string)
     console.error("❌ Failed to send job failure email:", error);
   }
 }
+
+export async function sendNotificationEmail(to: string, subject: string, html: string) {
+  try {
+    const response = await resend.emails.send({
+      from: "Employ-Net <noreply@employ-net.com>", // Use a verified domain
+      to,
+      subject,
+      html,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Error sending email:", error);
+    return null;
+  }
+}

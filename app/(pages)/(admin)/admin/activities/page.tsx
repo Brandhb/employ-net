@@ -69,8 +69,9 @@ export default function ActivitiesPage() {
     try {
       const formattedActivity: CreateActivityData = {
         ...newActivity,
-        type: newActivity.type as "video" | "survey", // ✅ Explicitly cast `type`
-        status: newActivity.status as "active" | "draft", // ✅ Explicitly cast `status`
+        type: newActivity.type as "video" | "survey" | "verification", // ✅ Explicitly cast `type`
+        status: newActivity.status as "active" | "draft",
+        testUrl: newActivity.testUrl as string
       };
 
       const result = await createActivity(formattedActivity);

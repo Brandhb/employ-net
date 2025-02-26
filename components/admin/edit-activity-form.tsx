@@ -15,7 +15,7 @@ import { Activity } from "@/types";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  type: z.enum(["video", "survey"]),
+  type: z.enum(["video", "survey", "verification"]),
   status: z.enum(["active", "draft"]),
   points: z.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
@@ -38,7 +38,7 @@ export function EditActivityForm({ activity, onClose }: EditActivityFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: activity.title,
-      type: activity.type as "video" | "survey",
+      type: activity.type as "video" | "survey" | "verification",
       status: activity.status as "active" | "draft",
       points: activity.points,
       description: activity.description || "",

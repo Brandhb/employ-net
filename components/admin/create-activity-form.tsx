@@ -4,7 +4,6 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useId } from "react";
 
 import {
   Form,
@@ -30,10 +29,11 @@ import { CreateActivityData } from "@/app/lib/types/admin";
 // ✅ Schema with `status`
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  type: z.enum(["video", "survey"]),
+  type: z.enum(["video", "survey", "verification"]),
   status: z.enum(["active", "draft"]).default("draft"),
   points: z.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
+  testUrl: z.string().url("Invalid URL format").optional(),
   metadata: z
     .object({
       playbackId: z.string().optional(),
@@ -48,8 +48,6 @@ interface CreateActivityResponse {
   error?: string; // ✅ Allow error handling
 }
 
-
-
 // ✅ Component
 export function CreateActivityForm({ onSubmit }: any) {
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +61,7 @@ export function CreateActivityForm({ onSubmit }: any) {
       status: "draft",
       points: 100,
       description: "",
+      testUrl: "",
       metadata: {},
     },
   });
@@ -72,24 +71,24 @@ export function CreateActivityForm({ onSubmit }: any) {
     setIsLoading(true);
     try {
       const response = await onSubmit(values);
-  
+
       if (!response.success) {
         throw new Error(response.error || "Activity creation failed");
       }
-  
+
       toast({ title: "Success", description: "Activity created successfully" });
       form.reset();
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Something went wrong",
+        description:
+          error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
   }
-  
 
   return (
     <Form {...form}>
@@ -125,13 +124,32 @@ export function CreateActivityForm({ onSubmit }: any) {
                 <SelectContent>
                   <SelectItem value="video">Video</SelectItem>
                   <SelectItem value="survey">Survey</SelectItem>
+                  <SelectItem value="verification">Verification</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-
+        {/* Test URL (Only for Verification Tasks) */}
+        {form.watch("type") === "verification" && (
+          <FormField
+            control={form.control}
+            name="testUrl"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Verification Test URL</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter the verification test URL"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         {/* Status */}
         <FormField
           control={form.control}
