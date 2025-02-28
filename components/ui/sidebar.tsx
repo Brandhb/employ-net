@@ -6,26 +6,22 @@ import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
-// ✅ Define Sidebar Link Type
 interface Links {
   label: string;
   href: string;
-  icon: React.ReactNode;
+  icon: React.JSX.Element | React.ReactNode;
 }
 
-// ✅ Define Sidebar Context Props
 interface SidebarContextProps {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   animate: boolean;
 }
 
-// ✅ Create Sidebar Context
 const SidebarContext = createContext<SidebarContextProps | undefined>(
   undefined
 );
 
-// ✅ Custom Hook to Access Sidebar Context
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
   if (!context) {
@@ -34,7 +30,6 @@ export const useSidebar = () => {
   return context;
 };
 
-// ✅ Sidebar Provider Component
 export const SidebarProvider = ({
   children,
   open: openProp,
@@ -58,7 +53,6 @@ export const SidebarProvider = ({
   );
 };
 
-// ✅ Sidebar Wrapper Component
 export const Sidebar = ({
   children,
   open,
@@ -77,7 +71,6 @@ export const Sidebar = ({
   );
 };
 
-// ✅ Sidebar Body Component (Handles Desktop & Mobile Sidebars)
 export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
   return (
     <>
@@ -87,18 +80,16 @@ export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
   );
 };
 
-// ✅ Desktop Sidebar Component
 export const DesktopSidebar = ({
   className,
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
   const { open, setOpen, animate } = useSidebar();
-
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 flex-shrink-0 transition-all duration-200",
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-white dark:bg-neutral-800 w-[300px] flex-shrink-0",
         className
       )}
       animate={{
@@ -113,21 +104,17 @@ export const DesktopSidebar = ({
   );
 };
 
-// ✅ Mobile Sidebar Component
 export const MobileSidebar = ({
   className,
   children,
   ...props
 }: React.ComponentProps<"div">) => {
   const { open, setOpen } = useSidebar();
-
   return (
     <>
-      {/* Mobile Sidebar Toggle Button */}
       <div
         className={cn(
-          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-neutral-100 dark:bg-neutral-800 w-full",
-          className
+          "h-10 px-4 py-4 flex flex-row md:hidden items-center justify-between bg-white dark:bg-neutral-800 w-full"
         )}
         {...props}
       >
@@ -137,24 +124,24 @@ export const MobileSidebar = ({
             onClick={() => setOpen(!open)}
           />
         </div>
-
-        {/* Mobile Sidebar Content */}
         <AnimatePresence>
           {open && (
             <motion.div
               initial={{ x: "-100%", opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: "-100%", opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              transition={{
+                duration: 0.3,
+                ease: "easeInOut",
+              }}
               className={cn(
                 "fixed h-full w-full inset-0 bg-white dark:bg-neutral-900 p-10 z-[100] flex flex-col justify-between",
                 className
               )}
             >
-              {/* Close Button */}
               <div
                 className="absolute right-10 top-10 z-50 text-neutral-800 dark:text-neutral-200 cursor-pointer"
-                onClick={() => setOpen(false)}
+                onClick={() => setOpen(!open)}
               >
                 <X />
               </div>
@@ -167,7 +154,6 @@ export const MobileSidebar = ({
   );
 };
 
-// ✅ Sidebar Link Component
 export const SidebarLink = ({
   link,
   className,
@@ -178,20 +164,16 @@ export const SidebarLink = ({
   props?: LinkProps;
 }) => {
   const { open, animate } = useSidebar();
-
   return (
     <Link
       href={link.href}
       className={cn(
-        "flex items-center gap-2 group/sidebar py-2 transition duration-150",
+        "flex items-center justify-start gap-2 group/sidebar py-2",
         className
       )}
       {...props}
     >
-      {/* Icon */}
       {link.icon}
-
-      {/* Label with Animation */}
       <motion.span
         animate={{
           display: animate ? (open ? "inline-block" : "none") : "inline-block",

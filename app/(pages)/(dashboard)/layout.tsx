@@ -1,31 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { AdContainer } from "@/components/ads/ad-container";
-import { UserButton } from "@clerk/nextjs";
-import { useUser } from "@clerk/nextjs";
+import { UserButton, SignOutButton, useUser } from "@clerk/nextjs";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LogOut, LayoutDashboard, Trophy, ClipboardList, DollarSign, Settings, Moon, Sun } from "lucide-react";
 
-import {
-  LayoutDashboard,
-  Trophy,
-  ClipboardList,
-  DollarSign,
-  ShieldCheck,
-  Settings,
-} from "lucide-react";
-
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded, user } = useUser();
+  const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
 
   const isLoading = !isLoaded || !user;
@@ -35,28 +24,22 @@ export default function DashboardLayout({
     { title: "Opportunities", href: "/dashboard/rewards", icon: Trophy },
     { title: "Tasks", href: "/dashboard/activities", icon: ClipboardList },
     { title: "Earnings", href: "/dashboard/payouts", icon: DollarSign },
-   /* { title: "Verification", href: "/dashboard/verification", icon: ShieldCheck },*/
-    { title: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
   return (
     <NotificationProvider>
-      {/* ✅ Fix: Keep Sidebar & Main Layout Consistent */}
-      <div
-        className={cn(
-          "flex h-screen w-full bg-gray-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
-        )}
-      >
-        {/* ✅ Sidebar Always Renders */}
+      <div className={cn("flex h-screen w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700")}>
+        {/* ✅ Sidebar */}
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10 h-full w-[250px]">
             <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+              {/* ✅ Sidebar Logo */}
               <div className="p-0">
                 {open ? (
                   isLoading ? (
                     <Skeleton className="h-12 w-32 rounded-full" />
                   ) : (
-                    <Image src="/employ-net-logo.png" alt="Logo" width={140} height={70} className="rounded-full" />
+                    <Image src="/employ-net-logo.png" alt="Logo" width={140} height={70} className="rounded-lg border-black" />
                   )
                 ) : isLoading ? (
                   <Skeleton className="h-8 w-8 rounded-full" />
@@ -65,55 +48,94 @@ export default function DashboardLayout({
                 )}
               </div>
 
+              {/* ✅ Sidebar Links */}
               <div className="mt-8 flex flex-col gap-2">
                 {isLoading
-                  ? [...Array(6)].map((_, idx) => (
-                      <Skeleton key={idx} className="h-6 w-full rounded-md" />
-                    ))
+                  ? [...Array(4)].map((_, idx) => <Skeleton key={idx} className="h-6 w-full rounded-md" />)
                   : items.map((item, idx) => (
                       <SidebarLink
                         key={idx}
                         link={{
-                          label: item.title,
+                          label: open ? item.title : "",
                           href: item.href,
-                          icon: (
-                            <item.icon className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-                          ),
+                          icon: <item.icon className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
                         }}
                       />
                     ))}
               </div>
             </div>
 
-            <div>
+            {/* ✅ User Profile Section */}
+            <div className="pb-4">
               {isLoading ? (
-                <Skeleton className="h-8 w-32 rounded-full" />
+                <Skeleton className="h-10 w-full rounded-md" />
               ) : (
-                <UserButton
-                  appearance={{
-                    elements: {
-                      rootBox: "w-full",
-                      userButtonBox: "w-full",
-                      userButtonTrigger: "w-full",
-                      userButtonAvatarBox: "w-7 h-7",
-                    },
-                  }}
-                  userProfileMode="navigation"
-                  userProfileUrl="/user-profile"
-                />
+                <div className="flex flex-col space-y-3">
+                  {/* ✅ Dark/Light Mode Toggle 
+                  <button
+                    onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                    className={`flex items-center ${open ? "gap-2 text-sm" : "justify-center"} text-neutral-700 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-neutral-100 w-full`}
+                  >
+                    {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                    {open && (theme === "dark" ? "Light Mode" : "Dark Mode")}
+                  </button>
+*/}
+                  {/* ✅ Settings Link (Moved to Bottom) */}
+                  <SidebarLink
+                    link={{
+                      label: open ? "Settings" : "",
+                      href: "/dashboard/settings",
+                      icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-6 w-6 flex-shrink-0" />,
+                    }}
+                  />
+
+                  {/* ✅ User Button with Name (Only Show Name When Sidebar is Open) */}
+                  <div className={`flex items-center`}>
+                    <UserButton
+                      appearance={{
+                        elements: {
+                          rootBox: "mb-2 mr-2",
+                          userButtonBox: "w-full",
+                          userButtonTrigger: "w-full outline-none ring-0 border-none focus:outline-none focus:ring-0",
+                          userButtonAvatarBox: "w-6 h-6",
+                        },
+                      }}
+                      userProfileMode="navigation"
+                      userProfileUrl="/user-profile"
+                    />
+                    {open && <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">{user?.fullName || "User"}</span>}
+                  </div>
+
+                  {/* ✅ Logout Link (Show Icon Only When Sidebar is Closed) */}
+                  <SignOutButton>
+                    <button
+                      className={`flex items-center ${open ? "gap-2 text-sm" : "justify-center"} text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-500 w-full`}
+                    >
+                      <LogOut className="h-5 w-5" />
+                      {open && "Logout"}
+                    </button>
+                  </SignOutButton>
+                </div>
               )}
             </div>
           </SidebarBody>
         </Sidebar>
 
-        {/* ✅ Fix: Prevent Main Content from Shrinking */}
-        <main className="flex-1 p-8 overflow-y-auto flex flex-col justify-start items-start w-full min-w-[800px]">
+        {/* ✅ Main Content */}
+        <main
+          className="flex-1 p-6 md:p-10 overflow-y-auto flex flex-col justify-start items-start w-full 
+          min-w-[800px] rounded-tl-3xl border border-neutral-200 dark:border-neutral-700 
+          bg-neutral-100 dark:bg-neutral-900 shadow-lg"
+        >
+          {/* ✅ Top Right Notification Bell */}
           <div className="flex justify-end mb-4 w-full">
             {isLoading ? <Skeleton className="h-8 w-8 rounded-full" /> : <NotificationBell />}
           </div>
-          <AdContainer />
 
-          {/* ✅ Fix: Ensure Placeholder Has Consistent Height */}
+          {/* ✅ Ad Section 
+          <AdContainer />
+*/}
+          {/* ✅ Main Content / Children */}
           <div className="w-full">
             {isLoading ? (
               <div className="space-y-4">

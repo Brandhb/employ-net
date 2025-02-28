@@ -31,8 +31,6 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onClick }: ActivityCardProps) {
-  console.log("test: ", activity )
-
   return (
     <Card key={activity.id}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
