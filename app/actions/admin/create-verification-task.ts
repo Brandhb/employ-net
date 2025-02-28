@@ -11,11 +11,11 @@ export async function createVerificationTask() {
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 60);
 
-  const task = await prisma.verificationTask.create({
+  const task = await prisma.verificationRequests.create({
     data: {
       userId: userId,
       status: "pending",
-      expiresAt,
+//      expiresAt,
     },
   });
 

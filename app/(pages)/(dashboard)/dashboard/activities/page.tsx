@@ -3,15 +3,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import { ActivityCard } from "@/components/activity-card";
-import { VerificationDialogs } from "@/components/verification-dialogs";
 import { RefreshCw, Clock, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { startVerificationTask } from "@/app/actions/admin/start-verification-task";
-import { confirmVerificationTask } from "@/app/actions/admin/confirm-verification-task";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
+import { VerificationConfirmationDialog } from "@/components/ui/verification-request-modal";
+import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
 
 interface Activity {
   id: string;
@@ -28,7 +26,7 @@ export default function ActivitiesPage() {
   const { userId } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
-  const [confirmTask, setConfirmTask] = useState<Activity | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
   const [completedActivities, setCompletedActivities] = useState<Activity[]>(
     []
@@ -37,9 +35,7 @@ export default function ActivitiesPage() {
 
   // ✅ Fetch Initial Data from API
   useEffect(() => {
-    if (!userId) return;
-
-    const fetchActivities = async () => {
+    async function fetchActivities() {
       try {
         const res = await fetch("/api/activities/user");
         if (!res.ok) throw new Error("Failed to fetch activities");
@@ -50,49 +46,71 @@ export default function ActivitiesPage() {
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
       }
-    };
+    }
 
-    fetchActivities();
-  }, [userId]);
+    fetchActivities(); // ✅ Initial fetch
 
-  // ✅ Subscribe to Supabase Realtime Separately
-  useEffect(() => {
-    if (!userId) return;
+    // ✅ Listen for Realtime Changes
+    listenForTableChanges("activities").then((channel) => {
+      console.log("✅ Subscribed to activities table:", channel);
 
-    const channel = supabase
-      .channel("realtime-activities")
-      .on(
+      channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table: "activities" },
         (payload) => {
           console.log("🔄 Realtime Update:", payload);
+
+          // ✅ Show a toast notification based on the event type
           toast({
-            title: "New Activity",
-            description: "New activity has beeen added by Employ-Net"
-          })
-          // Ensure payload.new is typed correctly
+            title: "Activity Update",
+            description: `An activity was ${
+              payload.eventType === "INSERT"
+                ? "added"
+                : payload.eventType === "UPDATE"
+                ? "updated"
+                : "deleted"
+            }.`,
+          });
+
+          // ✅ Type assertion: Explicitly cast payload data
           const updatedActivity = payload.new as Activity;
+          const deletedActivity = payload.old as Activity;
 
-          setActiveActivities((prev: Activity[]) =>
-            prev.map((activity) =>
-              activity.id === updatedActivity.id ? updatedActivity : activity
-            )
-          );
-
-          setCompletedActivities((prev: Activity[]) =>
-            prev.map((activity) =>
-              activity.id === updatedActivity.id ? updatedActivity : activity
-            )
-          );
+          // ✅ Handle different eventTypes
+          if (payload.eventType === "INSERT") {
+            setActiveActivities((prev) =>
+              updatedActivity.status === "active" ? [...prev, updatedActivity] : prev
+            );
+            setCompletedActivities((prev) =>
+              updatedActivity.status === "completed" ? [...prev, updatedActivity] : prev
+            );
+          } else if (payload.eventType === "UPDATE") {
+            setActiveActivities((prev) =>
+              prev.map((activity) =>
+                activity.id === updatedActivity.id ? updatedActivity : activity
+              )
+            );
+            setCompletedActivities((prev) =>
+              prev.map((activity) =>
+                activity.id === updatedActivity.id ? updatedActivity : activity
+              )
+            );
+          } else if (payload.eventType === "DELETE") {
+            setActiveActivities((prev) =>
+              prev.filter((activity) => activity.id !== deletedActivity.id)
+            );
+            setCompletedActivities((prev) =>
+              prev.filter((activity) => activity.id !== deletedActivity.id)
+            );
+          }
         }
-      )
-      .subscribe();
+      );
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      console.log("🛑 Unsubscribing from activities table...");
     };
-  }, [userId]);
-
+  }, []);
   // ✅ Handle Refresh Click
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -110,32 +128,36 @@ export default function ActivitiesPage() {
     }
   };
 
-  // ✅ Handle Task Start
-  const handleStartVerification = async () => {
-    if (selectedTask) {
-      await startVerificationTask(selectedTask.id);
-      setSelectedTask(null);
-    }
-  };
+  const handleRequestVerification = async () => {
+    if (!selectedTask) return;
+    try {
+      const response = await fetch("/api/users/verification-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityId: selectedTask.id }),
+      });
 
-  // ✅ Handle Task Confirmation
-  const handleConfirmVerification = async () => {
-    if (confirmTask) {
-      await confirmVerificationTask(confirmTask.id);
-      setConfirmTask(null);
+      if (!response.ok) throw new Error("Failed to request verification");
+      toast({
+        title: "Request Sent",
+        description: "Admin will review and send you the verification link.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not send verification request",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDialogOpen(false);
     }
   };
 
   // ✅ Handle Activity Click
   const handleActivityClick = (activity: Activity) => {
-    if (activity.status === "completed") return;
-
     if (activity.type === "verification") {
-      if (activity.status === "ready") {
-        setConfirmTask(activity);
-      } else {
-        setSelectedTask(activity);
-      }
+      setSelectedTask(activity);
+      setIsDialogOpen(true);
     } else {
       router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
     }
@@ -168,6 +190,7 @@ export default function ActivitiesPage() {
         <div className="grid gap-4">
           {activeActivities.map((activity) => (
             <ActivityCard
+              userId={userId!}
               key={activity.id}
               activity={activity}
               onClick={handleActivityClick}
@@ -185,6 +208,7 @@ export default function ActivitiesPage() {
           <div className="grid gap-4 mt-4">
             {completedActivities.map((activity) => (
               <ActivityCard
+                userId={userId!}
                 key={activity.id}
                 activity={activity}
                 onClick={handleActivityClick}
@@ -194,13 +218,19 @@ export default function ActivitiesPage() {
         </div>
       )}
 
-      <VerificationDialogs
+      {/*<VerificationDialogs
         selectedTask={selectedTask}
         confirmTask={confirmTask}
         onStartVerification={handleStartVerification}
         onConfirmVerification={handleConfirmVerification}
         setSelectedTask={setSelectedTask}
         setConfirmTask={setConfirmTask}
+      />*/}
+      {/* Verification Task Confirmation Dialog */}
+      <VerificationConfirmationDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onConfirm={handleRequestVerification}
       />
     </div>
   );

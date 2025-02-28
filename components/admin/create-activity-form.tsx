@@ -26,26 +26,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CreateActivityData } from "@/app/lib/types/admin";
 
-// ✅ Schema with `status`
+// ✅ Schema (No Test URL for Verification)
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   type: z.enum(["video", "survey", "verification"]),
   status: z.enum(["active", "draft"]).default("draft"),
-  points: z.number().min(1, "Points must be at least 1"),
+  points: z.coerce.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
-  testUrl: z.string().url("Invalid URL format").optional(),
   metadata: z
     .object({
-      playbackId: z.string().optional(),
-      formId: z.string().optional(),
+      playbackId: z.string().optional(), // Video metadata
+      formId: z.string().optional(), // Survey metadata
     })
     .optional(),
 });
 
-// ✅ Response Type (Ensures we handle errors properly)
+// ✅ Response Type
 interface CreateActivityResponse {
   success: boolean;
-  error?: string; // ✅ Allow error handling
+  error?: string;
 }
 
 // ✅ Component
@@ -57,18 +56,19 @@ export function CreateActivityForm({ onSubmit }: any) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
-      type: "video",
+      type: "survey",
       status: "draft",
       points: 100,
       description: "",
-      testUrl: "",
       metadata: {},
     },
   });
 
   // ✅ Submitting form
   async function handleSubmit(values: CreateActivityData) {
+    console.log("🟢 Submitting Form:", values);
     setIsLoading(true);
+
     try {
       const response = await onSubmit(values);
 
@@ -79,6 +79,7 @@ export function CreateActivityForm({ onSubmit }: any) {
       toast({ title: "Success", description: "Activity created successfully" });
       form.reset();
     } catch (error) {
+      console.error("❌ Submission Error:", error);
       toast({
         title: "Error",
         description:
@@ -131,25 +132,7 @@ export function CreateActivityForm({ onSubmit }: any) {
             </FormItem>
           )}
         />
-        {/* Test URL (Only for Verification Tasks) */}
-        {form.watch("type") === "verification" && (
-          <FormField
-            control={form.control}
-            name="testUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Verification Test URL</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter the verification test URL"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+
         {/* Status */}
         <FormField
           control={form.control}

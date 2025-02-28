@@ -53,7 +53,7 @@ export interface ActivityData {
   _count: number;
   id: string;
   title: string;
-  type: "video" | "survey" | "verification";
+  type: "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task";
   status: "active" | "draft";
   points: number;
   createdAt: string;

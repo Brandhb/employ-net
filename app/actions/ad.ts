@@ -5,7 +5,7 @@ import { isUUID } from "@/lib/utils";
 import { auth } from "@clerk/nextjs/server";
 
 // Define the Ad type
-export type AdType = "video" | "survey" | "display" | "verification";
+export type AdType = "video" | "survey" | "display" | "verification" | "ux_ui_test" | "ai_image_task";
 
 interface BaseMetadata {
   duration?: number;

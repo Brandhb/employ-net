@@ -181,3 +181,16 @@ export async function markAllNotificationsAsRead(userId: string) {
     throw error;
   }
 }
+
+export async function sendAdminNotification(userId: string) {
+  await prisma.notification.create({
+    data: {
+      userId,
+      title: "New Verification Request",
+      message: "A user has requested verification. Please generate a link and send it.",
+      type: "verification",
+      userRole: "admin",
+    },
+  });
+}
+

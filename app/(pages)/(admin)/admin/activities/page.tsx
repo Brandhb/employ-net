@@ -63,50 +63,30 @@ export default function ActivitiesPage() {
   );
 
   // ✅ Handle activity creation
-  const handleCreateActivity = async (
-    newActivity: Omit<Activity, "id" | "createdAt">
-  ) => {
+  const handleCreateActivity = async (newActivity: CreateActivityData) => {
+    console.log("📌 Create Task Clicked:", newActivity); // Debugging Step 1
     try {
-      const formattedActivity: CreateActivityData = {
-        ...newActivity,
-        type: newActivity.type as "video" | "survey" | "verification", // ✅ Explicitly cast `type`
-        status: newActivity.status as "active" | "draft",
-        testUrl: newActivity.testUrl as string
-      };
-
-      const result = await createActivity(formattedActivity);
-
+      const result = await createActivity(newActivity);
+  
+      console.log("📌 API Response:", result); // Debugging Step 2
+  
       if (!result.success) {
         throw new Error(result.error || "Failed to create activity");
       }
-
-      toast({
-        title: "Success",
-        description: "Activity created successfully!",
-      });
-
-      //revalidatePath("/admin/activities"); // ✅ Refresh cache
+  
+      toast({ title: "Success", description: "Activity created successfully!" });
       router.refresh();
-      setActivities(await getActivities()); // ✅ Fetch updated data
-
-      setIsModalOpen(false); // ✅ Close modal after success
+      setActivities(await getActivities());
+  
+      setIsModalOpen(false);
       return { success: true };
     } catch (error) {
-      console.error("❌ Error creating activity:", error);
-
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Something went wrong",
-        variant: "destructive",
-      });
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      console.error("❌ Error Creating Task:", error);
+      toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
+      return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
   };
+  
 
   // ✅ Handle activity status update
   const handleEditActivity = async (activity: ActivityData) => {
@@ -159,6 +139,7 @@ export default function ActivitiesPage() {
               <CreateActivityForm onSubmit={handleCreateActivity} />
             </DialogContent>
           </Dialog>
+          
         </div>
       </div>
 

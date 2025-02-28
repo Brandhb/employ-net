@@ -33,7 +33,7 @@ const BANK_API_URL = "https://data.holder.com.au/cds-au/v1/banking/products";
 
 
 export async function GET() {
-    debugger
+   // debugger
   try {
     // 🔵 Try fetching from an API
     const response = await fetch(BANK_API_URL);

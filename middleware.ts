@@ -44,7 +44,6 @@ export default clerkMiddleware(async (auth, req) => {
 
   // ✅ Block access to `/dashboard/activities/*` for unverified users
   if (isActivitiesRoute(req)) {
-    //debugger;
     if (!isAuthenticated) {
       console.warn("❌ User not authenticated, redirecting...");
       return redirectToSignIn();

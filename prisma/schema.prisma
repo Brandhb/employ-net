@@ -37,6 +37,7 @@ model User {
   processedPayouts             Payout[]              @relation("ProcessedBy")
   payouts                      Payout[]
   verificationSessions         VerificationSession[]
+  verificationRequests         VerificationRequest[]
 
   @@index([clerkUserId])
   @@map("users")
@@ -73,22 +74,27 @@ model VerificationSession {
 }
 
 model Activity {
-  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String                 @map("user_id") @db.Uuid
-  type        String
-  title       String
-  description String?
-  points      Int                    @default(0)
-  status      String                 @default("pending")
-  completedAt DateTime?              @map("completed_at") @db.Timestamp(6)
-  createdAt   DateTime?              @default(now()) @map("created_at") @db.Timestamp(6)
-  metadata    Json?
-  is_template Boolean                @default(false)
-  testUrl     String?                @map("test_url")
-  expriesAt   DateTime?              @map("expires_at") @db.Timestamptz(6)
-  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  logs        ActivityLog[]
-  completions activity_completions[]
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String                 @map("user_id") @db.Uuid
+  type                 String
+  title                String
+  description          String?
+  points               Int                    @default(0)
+  status               String                 @default("pending")
+  completedAt          DateTime?              @map("completed_at") @db.Timestamp(6)
+  createdAt            DateTime?              @default(now()) @map("created_at") @db.Timestamp(6)
+  metadata             Json?
+  is_template          Boolean                @default(false)
+  testUrl              String?                @map("test_url")
+  expriesAt            DateTime?              @map("expires_at") @db.Timestamptz(6)
+  taskmetadata         Json?
+  submissionfileurl    String?
+  submissionstatus     String?                @default("pending")
+  adminstatus          String?                @default("waiting")
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs                 ActivityLog[]
+  completions          activity_completions[]
+  verificationRequests VerificationRequest[]
 
   @@index([userId])
   @@map("activities")
@@ -206,4 +212,20 @@ model BankAccount {
 
   @@index([userId])
   @@map("bank_accounts")
+}
+
+model VerificationRequest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  activityId      String    @db.Uuid
+  status          String?   @default("waiting")
+  requestDate     DateTime? @default(now()) @db.Timestamp(6)
+  completedAt     DateTime? @db.Timestamp(6)
+  verificationUrl String?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity        Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId], map: "idx_verification_requests_activity")
+  @@index([userId], map: "idx_verification_requests_user")
+  @@map("verification_requests")
 }

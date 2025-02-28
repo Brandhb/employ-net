@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Shield, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
 
 interface BankAccount {
   bankName: string;
@@ -48,7 +49,7 @@ export default function PayoutRequestsPage() {
   }>({});
 
   useEffect(() => {
-    const fetchPayouts = async () => {
+    async function fetchPayouts() {
       try {
         const data = await getPayoutRequests();
         const formattedData = data.map((payout: any) => ({
@@ -73,9 +74,53 @@ export default function PayoutRequestsPage() {
       } finally {
         setIsLoading(false);
       }
-    };
+    }
 
-    fetchPayouts();
+    fetchPayouts(); // ✅ Initial fetch
+
+    // ✅ Listen for Realtime Changes
+    listenForTableChanges("payout_requests").then((channel) => {
+      console.log("✅ Subscribed to payout_requests table:", channel);
+
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payout_requests" },
+        (payload) => {
+          console.log("🔄 Realtime Update:", payload);
+
+          const { eventType } = payload; // ✅ Use eventType instead of event
+
+          // ✅ Show toast notifications for different event types
+          toast({
+            title: "Payout Request Updated",
+            description: `A payout request was ${
+              eventType === "INSERT" ? "added" : eventType === "UPDATE" ? "updated" : "deleted"
+            }.`,
+          });
+
+          // ✅ Type assertion: Explicitly cast payload data
+          const updatedPayout = payload.new as Payout;
+          const deletedPayout = payload.old as Payout;
+
+          // ✅ Handle different events efficiently
+          if (eventType === "INSERT") {
+            setPayouts((prev) => [...prev, updatedPayout]);
+          } else if (eventType === "UPDATE") {
+            setPayouts((prev) =>
+              prev.map((payout) => (payout.id === updatedPayout.id ? updatedPayout : payout))
+            );
+          } else if (eventType === "DELETE") {
+            setPayouts((prev) =>
+              prev.filter((payout) => payout.id !== deletedPayout.id)
+            );
+          }
+        }
+      );
+    });
+
+    return () => {
+      console.log("🛑 Unsubscribing from payout_requests table...");
+    };
   }, [toast]);
 
   const getBankAccount = (bankAccounts: BankAccount[], payoutId: string) => {

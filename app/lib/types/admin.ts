@@ -63,7 +63,7 @@ export interface AdminAnalytics {
 
 export interface CreateActivityData {
   title: string;
-  type: "video" | "survey" | "verification"; // ✅ Ensures correct type
+  type: "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task"; // ✅ Ensures correct type
   status: "active" | "draft"; // ✅ Ensures correct type
   points: number;
   metadata?: Record<string, any>;

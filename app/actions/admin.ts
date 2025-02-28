@@ -15,6 +15,8 @@ import {
 } from "../lib/types/admin";
 import { redis } from "@/lib/redis";
 import * as Sentry from "@sentry/nextjs";
+import { sendNotificationEmail } from "@/lib/email";
+import { verificationTaskEmailTemplate } from "@/lib/emails/templates/verificationTaskReady";
 
 interface User {
   id: string;
@@ -652,6 +654,7 @@ const ACTIVITIES_CACHE_KEY = "activities";
 const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
 
 export async function getActivities(): Promise<ActivityData[]> {
+//debugger
   try {
     console.log(
       `[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`
@@ -677,7 +680,6 @@ export async function getActivities(): Promise<ActivityData[]> {
         status: true,
         points: true,
         createdAt: true,
-        expriesAt: true,
         completedAt: true,
         is_template: true,
         _count: { select: { completions: true } },
@@ -688,11 +690,10 @@ export async function getActivities(): Promise<ActivityData[]> {
     const formattedActivities = activities.map((activity) => ({
       id: activity.id,
       title: activity.title,
-      type: activity.type as "video" | "survey" | "verification",
+      type: activity.type as "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task",
       status: activity.status as "active" | "draft",
       points: activity.points,
       createdAt: activity.createdAt?.toISOString() || "",
-      expiresAt: activity.expriesAt?.toISOString() || "",
       completedAt: activity.completedAt ?? null,
       isTemplate: activity.is_template,
       _count: activity._count?.completions ?? 0,
@@ -845,3 +846,59 @@ export async function deleteActivity(activityId: string) {
 
   return { success: true };
 }
+
+export async function updateVerificationRequest(id: string, status: string, verificationUrl: string) {
+  await prisma.verificationRequest.update({
+    where: { id },
+    data: { status, verificationUrl },
+  });
+
+  // ✅ Fetch the updated request with user email
+  const request = await prisma.verificationRequest.findUnique({
+    where: { id },
+    include: {
+      user: {
+        select: { email: true },
+      },
+    },
+  });
+
+  // ✅ Ensure email exists before sending notification
+  if (request?.user?.email) {
+    const emailHtml = verificationTaskEmailTemplate(verificationUrl);
+
+    await sendNotificationEmail(
+      request.user.email,
+      "Your Verification Task is Ready",
+      emailHtml
+    );
+  
+  }
+}
+
+export async function getVerificationRequests() {
+ //debugger;
+ const requests = await prisma.verificationRequest.findMany({
+  where: { status: "waiting" },
+  include: {
+    user: { // Ensure that the user relation exists
+      select: { 
+        email: true 
+      }
+    }
+  },
+  
+});
+
+const { users } = await clerkClient()
+
+
+
+  return requests.map((req) => ({
+    id: req.id,
+    userEmail: req.user?.email || "N/A", // ✅ Ensure email is properly accessed
+    status: req.status!,
+    verificationUrl: req.verificationUrl,
+  }));
+}
+
