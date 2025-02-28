@@ -55,7 +55,6 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
           <Progress value={0} className="h-2" />
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">0% Complete</span>
-            <h1>Test: {activity.verificationRequests?.id}</h1>
             <div className="space-y-2">
            {/* ✅ Show different button states based on verificationRequests.status */}
            {activity.type === "verification" ? (
