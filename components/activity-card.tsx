@@ -16,6 +16,7 @@ interface Activity {
     status: "waiting" | "ready" | "completed";
     verificationUrl?: string | null;
   };
+  description: string;
 }
 
 interface VerificationRequest {
@@ -34,11 +35,11 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
   return (
     <Card
       key={activity.id}
-      className="w-full max-w-3xl mx-auto sm:max-w-2xl md:max-w-4xl lg:max-w-[90%]"
+      className="w-full max-w-3xl mx-auto sm:max-w-2xl md:max-w-4xl lg:max-w-[90%] shadow-lg border border-neutral-200 dark:border-neutral-700 transition-all duration-300 hover:shadow-xl hover:border-neutral-300 dark:hover:border-neutral-600"
     >
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-2 sm:space-y-0 pb-2">
         <div className="flex-1">
-          <CardTitle className="text-lg sm:text-xl">{activity.title}</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-semibold">{activity.title}</CardTitle>
           <p className="text-sm sm:text-base text-muted-foreground">
             {activity.type} • {activity.points} points
           </p>
@@ -54,8 +55,18 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
           )}
         </div>
       </CardHeader>
+
+      {/* ✅ Activity Description Section */}
+      {activity.description && (
+        <div className="px-6 pb-3">
+          <p className="text-sm sm:text-base text-neutral-600 dark:text-neutral-300 line-clamp-2">
+            {activity.description}
+          </p>
+        </div>
+      )}
+
       <CardContent>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <Progress value={0} className="h-2 sm:h-3" />
           {/* ✅ Responsive Button and Text Layout */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
@@ -94,5 +105,6 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
     </Card>
   );
 }
+
 
 

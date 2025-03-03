@@ -17,6 +17,7 @@ interface Activity {
   points: number;
   status: string;
   completedAt: string | null;
+  description: string;
 }
 
 export default function ActivitiesPage() {

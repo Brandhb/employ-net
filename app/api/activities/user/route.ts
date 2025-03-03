@@ -3,7 +3,6 @@ import * as Sentry from "@sentry/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { clearUserActivityCache } from "@/lib/cache"; // ✅ Import from utility file
 
 // ✅ Helper function to fetch and cache activities
 async function fetchUserActivities(userId: string) {
@@ -56,7 +55,8 @@ async function fetchUserActivities(userId: string) {
       points: template.points,
       status: "pending",
       completedAt: null,
-      verificationRequests: template.verificationRequests?.[0] || null, // ✅ Include verification request if exists
+      verificationRequests: template.verificationRequests?.[0] || null,
+      desription: template.description
     }));
 
   // ✅ Process completed activities

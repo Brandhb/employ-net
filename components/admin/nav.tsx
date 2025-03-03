@@ -11,6 +11,7 @@ import {
   DollarSign,
   Settings,
   BarChart,
+  Shield,
 } from "lucide-react";
 
 const items = [
@@ -28,6 +29,11 @@ const items = [
     title: "Tasks",
     href: "/admin/activities",
     icon: ClipboardList,
+  },
+  {
+    title: "Verification Requests",
+    href: "/admin/verification-requests",
+    icon: Shield,
   },
   {
     title: "Payouts",
