@@ -23,9 +23,18 @@ async function fetchUserActivities(userId: string) {
   });
   if (!user) return { error: "User not found" };
 
-  // ✅ Fetch active template activities
+  // ✅ Fetch active template activities (now includes verificationRequests)
   const templateActivities = await prisma.activity.findMany({
     where: { is_template: true, status: "active" },
+    include: {
+      verificationRequests: { // ✅ Include verificationRequests
+        select: {
+          id: true,
+          status: true,
+          verificationUrl: true,
+        },
+      },
+    },
   });
 
   // ✅ Fetch user's completed activities
@@ -34,7 +43,7 @@ async function fetchUserActivities(userId: string) {
     include: { activity: true },
   });
 
-  // ✅ Process activities
+  // ✅ Process active activities (excluding completed ones)
   const activeActivities = templateActivities
     .filter(
       (template) =>
@@ -47,8 +56,10 @@ async function fetchUserActivities(userId: string) {
       points: template.points,
       status: "pending",
       completedAt: null,
+      verificationRequests: template.verificationRequests?.[0] || null, // ✅ Include verification request if exists
     }));
 
+  // ✅ Process completed activities
   const completedActivities = userCompletedActivities.map((ua) => ({
     id: ua.activity?.id,
     title: ua.activity?.title,
@@ -66,6 +77,7 @@ async function fetchUserActivities(userId: string) {
   return responseData;
 }
 
+// ✅ API Route
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -76,7 +88,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error("❌ Error fetching activities:", error);
-    Sentry.captureException(error); // ✅ Sentry captures this error
+    Sentry.captureException(error); // ✅ Sentry logs error
 
     return NextResponse.json(
       { error: "Internal Server Error" },

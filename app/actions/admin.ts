@@ -635,7 +635,7 @@ export async function processPayoutRequest(
             ? `Your payout of $${payout.amount} has been sent.`
             : `Your payout was rejected: ${notes || "No reason provided"}`,
         type: status === "rejected" ? "error" : "success",
-        userRole: "admin"
+        userRole: "admin",
       },
     }),
   ]);
@@ -649,12 +649,11 @@ export async function processPayoutRequest(
   return { success: true };
 }
 
-
 const ACTIVITIES_CACHE_KEY = "activities";
 const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
 
 export async function getActivities(): Promise<ActivityData[]> {
-//debugger
+  //debugger
   try {
     console.log(
       `[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`
@@ -690,7 +689,12 @@ export async function getActivities(): Promise<ActivityData[]> {
     const formattedActivities = activities.map((activity) => ({
       id: activity.id,
       title: activity.title,
-      type: activity.type as "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task",
+      type: activity.type as
+        | "video"
+        | "survey"
+        | "verification"
+        | "ux_ui_test"
+        | "ai_image_task",
       status: activity.status as "active" | "draft",
       points: activity.points,
       createdAt: activity.createdAt?.toISOString() || "",
@@ -847,7 +851,11 @@ export async function deleteActivity(activityId: string) {
   return { success: true };
 }
 
-export async function updateVerificationRequest(id: string, status: string, verificationUrl: string) {
+export async function updateVerificationRequest(
+  id: string,
+  status: string,
+  verificationUrl: string
+) {
   await prisma.verificationRequest.update({
     where: { id },
     data: { status, verificationUrl },
@@ -872,27 +880,26 @@ export async function updateVerificationRequest(id: string, status: string, veri
       "Your Verification Task is Ready",
       emailHtml
     );
-  
   }
 }
 
 export async function getVerificationRequests() {
- //debugger;
- const requests = await prisma.verificationRequest.findMany({
-  where: { status: "waiting" },
-  include: {
-    user: { // Ensure that the user relation exists
-      select: { 
-        email: true 
-      }
-    }
-  },
-  
-});
+  //debugger;
+  const requests = await prisma.verificationRequest.findMany({
+    where: {
+      status: { in: ["waiting", "ready"] }, // ✅ Fetch both statuses
+    },
+    include: {
+      user: {
+        // Ensure that the user relation exists
+        select: {
+          email: true,
+        },
+      },
+    },
+  });
 
-const { users } = await clerkClient()
-
-
+  const { users } = await clerkClient();
 
   return requests.map((req) => ({
     id: req.id,
@@ -902,3 +909,31 @@ const { users } = await clerkClient()
   }));
 }
 
+export async function markVerificationCompleted(requestId: string) {
+  if (!requestId) {
+    throw new Error("Missing request ID");
+  }
+
+  try {
+    // ✅ Update the verification request status to "completed"
+    const updatedRequest = await prisma.verificationRequest.update({
+      where: { id: requestId },
+      data: { status: "completed" },
+      include: { user: true }, // Ensure we have user data
+    });
+
+    // ✅ Find the related activity and update its status
+    await prisma.activity.updateMany({
+      where: {
+        userId: updatedRequest.userId, // Update activities for this user
+        type: "verification", // Only update verification activities
+      },
+      data: { status: "completed" },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error marking verification as completed:", error);
+    throw new Error("Failed to update request and activity");
+  }
+}
