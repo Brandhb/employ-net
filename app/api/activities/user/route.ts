@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
+import { getInternalUserId } from "@/app/actions/get-internal-userid";
 
 // ✅ Helper function to fetch and cache activities
 async function fetchUserActivities(userId: string) {
@@ -21,14 +22,18 @@ async function fetchUserActivities(userId: string) {
     where: { employClerkUserId: userId },
   });
   if (!user) return { error: "User not found" };
+  debugger;
 
+  const InternalUserId = await getInternalUserId()
   // ✅ Fetch active template activities (now includes verificationRequests)
   const templateActivities = await prisma.activity.findMany({
     where: { is_template: true, status: "active" },
     include: {
       verificationRequests: { // ✅ Include verificationRequests
+        where: { userId: InternalUserId! },
         select: {
           id: true,
+          userId: true,
           status: true,
           verificationUrl: true,
         },
@@ -55,7 +60,7 @@ async function fetchUserActivities(userId: string) {
       points: template.points,
       status: "pending",
       completedAt: null,
-      verificationRequests: template.verificationRequests?.[0] || null,
+      verificationRequests: template.verificationRequests || [],
       desription: template.description
     }));
 
@@ -72,7 +77,7 @@ async function fetchUserActivities(userId: string) {
   const responseData = { success: true, activeActivities, completedActivities };
 
   // ✅ Cache result in Redis for 5 minutes
-  await redis.set(cacheKey, responseData, { ex: 300 });
+  await redis.set(cacheKey, responseData, { ex: 180 });
 
   return responseData;
 }

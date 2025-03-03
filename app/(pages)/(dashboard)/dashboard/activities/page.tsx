@@ -7,30 +7,38 @@ import { ActivityCard } from "@/components/activity-card";
 import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
 import { toast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { 
-  Clock, 
-  CheckCircle, 
-  ClipboardList, 
-  Search, 
-  Filter, 
+import {
+  Clock,
+  CheckCircle,
+  ClipboardList,
+  Search,
+  Filter,
   RefreshCw,
   AlertTriangle,
-  Layers
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuLabel
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { VerificationConfirmationDialog } from "@/components/ui/verification-request-modal";
+
+interface VerificationRequest {
+  id: string;
+  userId: string;
+  status: "waiting" | "ready" | "completed";
+  verificationUrl?: string | null;
+}
 
 interface Activity {
   id: string;
@@ -40,11 +48,7 @@ interface Activity {
   status: string;
   completedAt: string | null;
   description: string;
-  verificationRequests?: {
-    id: string;
-    status: "waiting" | "ready" | "completed";
-    verificationUrl?: string | null;
-  };
+  verificationRequests?: VerificationRequest[]; // ✅ Ensure proper typing
 }
 
 export default function ActivitiesPage() {
@@ -53,8 +57,12 @@ export default function ActivitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
-  const [completedActivities, setCompletedActivities] = useState<Activity[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
+    []
+  );
+  const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("active");
@@ -147,33 +155,121 @@ export default function ActivitiesPage() {
     };
   }, []);
 
-  // Handle Activity Click
+  useEffect(() => {
+    if (!userId) return; // ✅ Ensure userId exists
+  
+    listenForTableChanges("verificationRequests").then((channel) => {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "verificationRequests" },
+        (payload) => {
+          if (!payload.new || !("userId" in payload.new)) {
+            console.warn("❌ Missing userId in verification request update:", payload);
+            return; // ✅ Prevents errors if `userId` is missing
+          }
+  
+          const updatedRequest = payload.new as {
+            id: string;
+            userId: string;
+            status: "waiting" | "ready" | "completed";
+            verificationUrl?: string | null;
+          };
+  
+          if (updatedRequest.userId === userId) {
+            setActiveActivities((prev) =>
+              prev.map((activity) =>
+                Array.isArray(activity.verificationRequests) &&
+                activity.verificationRequests.some((vr) => vr.id === updatedRequest.id)
+                  ? {
+                      ...activity,
+                      verificationRequests: activity.verificationRequests.map((vr) =>
+                        vr.id === updatedRequest.id ? updatedRequest : vr
+                      ),
+                    }
+                  : activity
+              )
+            );
+          }
+        }
+      );
+    });
+  
+    return () => {
+      console.log("🛑 Unsubscribing from verificationRequests...");
+    };
+  }, [userId]);
+  
+  
+
+  // ✅ Handle Activity Click
   const handleActivityClick = (activity: Activity) => {
-    if (activity.status === "completed") return;
-    router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
+    if (activity.type === "verification") {
+      setSelectedTask(activity);
+      setIsDialogOpen(true);
+    } else {
+      router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
+    }
+  };
+
+  const handleRequestVerification = async () => {
+    if (!selectedTask) return;
+    try {
+      const response = await fetch("/api/users/verification-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityId: selectedTask.id }),
+      });
+
+      if (!response.ok) throw new Error("Failed to request verification");
+      toast({
+        title: "Request Sent",
+        description: "Admin will review and send you the verification link.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not send verification request",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDialogOpen(false);
+    }
   };
 
   // Filter activities based on search query and type filter
-  const filteredActiveActivities = activeActivities.filter(activity => {
-    const matchesSearch = activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         activity.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredActiveActivities = activeActivities.filter((activity) => {
+    const matchesSearch =
+      activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      activity.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = !activeFilter || activity.type === activeFilter;
     return matchesSearch && matchesFilter;
   });
 
-  const filteredCompletedActivities = completedActivities.filter(activity => {
-    const matchesSearch = activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         activity.description.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredCompletedActivities = completedActivities.filter((activity) => {
+    const matchesSearch =
+      activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      activity.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = !activeFilter || activity.type === activeFilter;
     return matchesSearch && matchesFilter;
   });
 
   // Calculate stats
-  const totalPoints = [...activeActivities, ...completedActivities].reduce((sum, activity) => sum + activity.points, 0);
-  const earnedPoints = completedActivities.reduce((sum, activity) => sum + activity.points, 0);
-  const completionRate = activeActivities.length > 0 
-    ? Math.round((completedActivities.length / (activeActivities.length + completedActivities.length)) * 100) 
-    : 0;
+  const totalPoints = [...activeActivities, ...completedActivities].reduce(
+    (sum, activity) => sum + activity.points,
+    0
+  );
+  const earnedPoints = completedActivities.reduce(
+    (sum, activity) => sum + activity.points,
+    0
+  );
+  const completionRate =
+    activeActivities.length > 0
+      ? Math.round(
+          (completedActivities.length /
+            (activeActivities.length + completedActivities.length)) *
+            100
+        )
+      : 0;
 
   // Error Handling
   if (error) {
@@ -221,7 +317,7 @@ export default function ActivitiesPage() {
             Complete tasks to earn points and rewards
           </p>
         </div>
-        
+
         <div className="flex flex-wrap gap-3">
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-3 flex items-center gap-3">
@@ -230,11 +326,13 @@ export default function ActivitiesPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Earned Points</p>
-                <p className="text-lg font-bold">{earnedPoints}/{totalPoints}</p>
+                <p className="text-lg font-bold">
+                  {earnedPoints}/{totalPoints}
+                </p>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-green-500/5 border-green-500/20">
             <CardContent className="p-3 flex items-center gap-3">
               <div className="bg-green-500/10 rounded-full p-2">
@@ -260,7 +358,7 @@ export default function ActivitiesPage() {
             className="pl-10 pr-4"
           />
         </div>
-        
+
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -286,15 +384,17 @@ export default function ActivitiesPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          
-          <Button 
-            variant="ghost" 
-            size="icon" 
+
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="h-10 w-10"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
       </div>
@@ -303,12 +403,15 @@ export default function ActivitiesPage() {
       {(activeFilter || searchQuery) && (
         <div className="flex flex-wrap gap-2 items-center">
           {activeFilter && (
-            <Badge variant="outline" className="flex items-center gap-1 bg-primary/5">
+            <Badge
+              variant="outline"
+              className="flex items-center gap-1 bg-primary/5"
+            >
               Type: {activeFilter}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-4 w-4 ml-1 p-0" 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 ml-1 p-0"
                 onClick={() => setActiveFilter(null)}
               >
                 <X className="h-3 w-3" />
@@ -316,22 +419,25 @@ export default function ActivitiesPage() {
             </Badge>
           )}
           {searchQuery && (
-            <Badge variant="outline" className="flex items-center gap-1 bg-primary/5">
+            <Badge
+              variant="outline"
+              className="flex items-center gap-1 bg-primary/5"
+            >
               Search: {searchQuery}
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-4 w-4 ml-1 p-0" 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 ml-1 p-0"
                 onClick={() => setSearchQuery("")}
               >
                 <X className="h-3 w-3" />
               </Button>
             </Badge>
           )}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-xs h-7" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7"
             onClick={() => {
               setActiveFilter(null);
               setSearchQuery("");
@@ -343,7 +449,12 @@ export default function ActivitiesPage() {
       )}
 
       {/* Tabs for Active/Completed */}
-      <Tabs defaultValue="active" value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs
+        defaultValue="active"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="active" className="relative">
             Active Tasks
@@ -401,18 +512,23 @@ export default function ActivitiesPage() {
                     <div className="bg-muted/50 rounded-full p-4 mb-4">
                       <Layers className="h-10 w-10 text-muted-foreground" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">No Active Tasks Found</h3>
+                    <h3 className="text-xl font-semibold mb-2">
+                      No Active Tasks Found
+                    </h3>
                     <p className="text-muted-foreground max-w-md mb-6">
-                      {activeFilter 
-                        ? `No ${activeFilter} tasks available. Try changing your filter.` 
-                        : searchQuery 
-                          ? "No tasks match your search. Try different keywords."
-                          : "All tasks have been completed. Check back later for new opportunities!"}
+                      {activeFilter
+                        ? `No ${activeFilter} tasks available. Try changing your filter.`
+                        : searchQuery
+                        ? "No tasks match your search. Try different keywords."
+                        : "All tasks have been completed. Check back later for new opportunities!"}
                     </p>
-                    <Button variant="outline" onClick={() => {
-                      setActiveFilter(null);
-                      setSearchQuery("");
-                    }}>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setActiveFilter(null);
+                        setSearchQuery("");
+                      }}
+                    >
                       Clear Filters
                     </Button>
                   </motion.div>
@@ -449,13 +565,18 @@ export default function ActivitiesPage() {
                     <div className="bg-muted/50 rounded-full p-4 mb-4">
                       <CheckCircle className="h-10 w-10 text-muted-foreground" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">No Completed Tasks</h3>
+                    <h3 className="text-xl font-semibold mb-2">
+                      No Completed Tasks
+                    </h3>
                     <p className="text-muted-foreground max-w-md mb-6">
                       {activeFilter || searchQuery
                         ? "No completed tasks match your current filters."
                         : "You haven't completed any tasks yet. Start with the active tasks to earn points!"}
                     </p>
-                    <Button variant="outline" onClick={() => setActiveTab("active")}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setActiveTab("active")}
+                    >
                       View Active Tasks
                     </Button>
                   </motion.div>
@@ -465,6 +586,11 @@ export default function ActivitiesPage() {
           </>
         )}
       </Tabs>
+      <VerificationConfirmationDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onConfirm={handleRequestVerification}
+      />
     </div>
   );
 }
