@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { NotificationProvider } from "@/components/notifications/notification-provider";
 import { NotificationBell } from "@/components/notifications/notification-bell";
@@ -11,11 +11,17 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogOut, LayoutDashboard, Trophy, ClipboardList, DollarSign, Settings, Moon, Sun } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded, user } = useUser();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname(); // Detects current path
+
+  useEffect(() => {
+    setOpen(false); // Close sidebar when the route changes
+  }, [pathname]);
 
   const isLoading = !isLoaded || !user;
 
@@ -28,11 +34,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <NotificationProvider>
-      <div className={cn("flex h-screen w-full bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700")}>
-        {/* ✅ Sidebar */}
+ <div
+      className={cn(
+        `rounded-md flex flex-col md:flex-row bg-white dark:bg-neutral-800 w-full flex-1
+          border border-neutral-200 dark:border-neutral-700 overflow-hidden`,
+        "h-screen" 
+      )}
+    >        {/* ✅ Sidebar */}
         <Sidebar open={open} setOpen={setOpen}>
-          <SidebarBody className="justify-between gap-10 h-full w-[250px]">
-            <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+        <SidebarBody className="justify-between gap-10 h-screen">
+        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+            
               {/* ✅ Sidebar Logo */}
               <div className="p-0">
                 {open ? (
@@ -124,7 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* ✅ Main Content */}
         <main
           className="flex-1 p-6 md:p-10 overflow-y-auto flex flex-col justify-start items-start w-full 
-          min-w-[800px] rounded-tl-3xl border border-neutral-200 dark:border-neutral-700 
+           rounded-tl-3xl border border-neutral-200 dark:border-neutral-700 
           bg-neutral-100 dark:bg-neutral-900 shadow-lg"
         >
           {/* ✅ Top Right Notification Bell */}

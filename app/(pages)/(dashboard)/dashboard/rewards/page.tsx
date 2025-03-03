@@ -141,8 +141,8 @@ export default function RewardsPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {rewards.map((reward, index) => (
-          <>
-            <Card key={index}>
+          <div key={index}>
+            <Card>
               <CardHeader>
                 <CardTitle className="text-lg">{reward.title}</CardTitle>
               </CardHeader>
@@ -173,8 +173,8 @@ export default function RewardsPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      setSelectedReward(null)
-                      setIsModalOpen(false)
+                      setSelectedReward(null);
+                      setIsModalOpen(false);
                     }}
                   >
                     Cancel
@@ -188,7 +188,7 @@ export default function RewardsPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </>
+          </div>
         ))}
       </div>
     </div>
