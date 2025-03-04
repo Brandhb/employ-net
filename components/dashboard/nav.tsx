@@ -10,7 +10,8 @@ import {
   ClipboardList,
   DollarSign,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Brain
 } from "lucide-react";
 
 const items = [
@@ -43,7 +44,7 @@ const items = [
     title: "Settings",
     href: "/dashboard/settings",
     icon: Settings,
-  },
+  }
 ];
 
 export function DashboardNav({
