@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -37,7 +36,9 @@ export default function ActivitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
-  const [completedActivities, setCompletedActivities] = useState<Activity[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
+    []
+  );
   const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -76,7 +77,8 @@ export default function ActivitiesPage() {
   };
 
   // ✅ Subscribe to Supabase Realtime Updates for Activities
-  {/* Disabled for now
+  {
+    /* Disabled for now
   useEffect(() => {
     async function subscribeToRealtimeUpdates() {
       if (unsubscribeRef.current) {
@@ -119,7 +121,8 @@ export default function ActivitiesPage() {
       }
     };
   }, []);
-*/}
+*/
+  }
 
   // ✅ Handle Activity Click
   const handleActivityClick = (activity: Activity) => {
@@ -156,13 +159,28 @@ export default function ActivitiesPage() {
     }
   };
 
+  // ✅ Filter activities based on search query and active filter
+  const filteredActiveActivities = activeActivities.filter(
+    (activity) =>
+      (!activeFilter || activity.type === activeFilter) &&
+      (!searchQuery ||
+        activity.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
-
+  const filteredCompletedActivities = completedActivities.filter(
+    (activity) =>
+      (!activeFilter || activity.type === activeFilter) &&
+      (!searchQuery ||
+        activity.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="flex-1 space-y-6 container mx-auto px-4 sm:px-6 max-w-7xl">
-      <ActivityStats activeActivities={activeActivities} completedActivities={completedActivities} />
-      <ActivitySearchFilter 
+      <ActivityStats
+        activeActivities={activeActivities}
+        completedActivities={completedActivities}
+      />
+      <ActivitySearchFilter
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         activeFilter={activeFilter}
@@ -171,12 +189,15 @@ export default function ActivitiesPage() {
       />
       <ActivityTabs
         userId={userId!}
-        activeActivities={activeActivities}
-        completedActivities={completedActivities}
+        activeActivities={filteredActiveActivities}
+        completedActivities={filteredCompletedActivities}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         handleActivityClick={handleActivityClick}
-        isLoading={isLoading} searchQuery={""} activeFilter={null}      />
+        isLoading={isLoading}
+        searchQuery={""}
+        activeFilter={null}
+      />
       <VerificationConfirmationDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}

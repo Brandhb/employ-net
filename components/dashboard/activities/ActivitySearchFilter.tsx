@@ -32,6 +32,7 @@ export function ActivitySearchFilter({
   const lastRefreshTime = useRef<number>(0);
 
   // ✅ Debounce the refresh function with a 5-second cooldown
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedRefresh = useCallback(
     debounce(() => {
       handleRefresh();
@@ -95,7 +96,7 @@ export function ActivitySearchFilter({
         </Button>
       </div>
 
-      {/* Active Filter Badge */}
+      {/* Active Filter Badge 
       {activeFilter && (
         <Badge variant="outline" className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1">
           {activeFilter}
@@ -108,7 +109,7 @@ export function ActivitySearchFilter({
             <X className="h-3 w-3" />
           </Button>
         </Badge>
-      )}
+      )}*/}
     </div>
   );
 }
