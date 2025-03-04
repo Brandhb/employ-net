@@ -22,7 +22,7 @@ async function fetchUserActivities(userId: string) {
     where: { employClerkUserId: userId },
   });
   if (!user) return { error: "User not found" };
-  debugger;
+  //debugger;
 
   const InternalUserId = await getInternalUserId()
   // ✅ Fetch active template activities (now includes verificationRequests)
@@ -77,7 +77,7 @@ async function fetchUserActivities(userId: string) {
   const responseData = { success: true, activeActivities, completedActivities };
 
   // ✅ Cache result in Redis for 5 minutes
-  await redis.set(cacheKey, responseData, { ex: 180 });
+  await redis.set(cacheKey, responseData, { ex: 300 });
 
   return responseData;
 }

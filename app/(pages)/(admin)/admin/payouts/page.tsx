@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Shield, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
+import { getInternalUserIdUtil } from "@/lib/utils";
 
 interface BankAccount {
   bankName: string;
@@ -48,8 +49,13 @@ export default function PayoutRequestsPage() {
     [key: string]: { visible: boolean; timestamp: number };
   }>({});
 
+  const updateQueue = useRef<Payout[]>([]); // ✅ Buffer for batch updates
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const updateTimer = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     async function fetchPayouts() {
+      setIsLoading(true);
       try {
         const data = await getPayoutRequests();
         const formattedData = data.map((payout: any) => ({
@@ -66,6 +72,7 @@ export default function PayoutRequestsPage() {
         }));
         setPayouts(formattedData);
       } catch (error) {
+        console.error("❌ Error fetching payout requests:", error);
         toast({
           title: "Error",
           description: "Failed to load payout requests",
@@ -76,52 +83,67 @@ export default function PayoutRequestsPage() {
       }
     }
 
-    fetchPayouts(); // ✅ Initial fetch
+    fetchPayouts(); // ✅ Initial Fetch
 
-    // ✅ Listen for Realtime Changes
-    listenForTableChanges("payout_requests").then((channel) => {
-      console.log("✅ Subscribed to payout_requests table:", channel);
+    async function subscribeToRealtimeUpdates() {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current(); // ✅ Ensure previous listener is removed
+      }
 
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "payout_requests" },
-        (payload) => {
-          console.log("🔄 Realtime Update:", payload);
+      unsubscribeRef.current = await listenForTableChanges("payout_requests", "userId", getInternalUserIdUtil()!, (payload) => {
+        console.log("🔄 Payout Request Update Received:", payload);
 
-          const { eventType } = payload; // ✅ Use eventType instead of event
+        const { event } = payload; // ✅ Corrected event name
 
-          // ✅ Show toast notifications for different event types
-          toast({
-            title: "Payout Request Updated",
-            description: `A payout request was ${
-              eventType === "INSERT" ? "added" : eventType === "UPDATE" ? "updated" : "deleted"
-            }.`,
-          });
+        toast({
+          title: "Payout Request Updated",
+          description: `A payout request was ${
+            event === "INSERT" ? "added" : event === "UPDATE" ? "updated" : "deleted"
+          }.`,
+        });
 
-          // ✅ Type assertion: Explicitly cast payload data
-          const updatedPayout = payload.new as Payout;
-          const deletedPayout = payload.old as Payout;
+        const updatedPayout = payload.new as Payout;
+        const deletedPayout = payload.old as Payout;
 
-          // ✅ Handle different events efficiently
-          if (eventType === "INSERT") {
-            setPayouts((prev) => [...prev, updatedPayout]);
-          } else if (eventType === "UPDATE") {
-            setPayouts((prev) =>
-              prev.map((payout) => (payout.id === updatedPayout.id ? updatedPayout : payout))
-            );
-          } else if (eventType === "DELETE") {
-            setPayouts((prev) =>
-              prev.filter((payout) => payout.id !== deletedPayout.id)
-            );
-          }
+        // ✅ Add updates to queue
+        if (event === "INSERT" && updatedPayout) {
+          updateQueue.current.push(updatedPayout);
+        } else if (event === "UPDATE" && updatedPayout) {
+          updateQueue.current = updateQueue.current.map((payout) =>
+            payout.id === updatedPayout.id ? updatedPayout : payout
+          );
+        } else if (event === "DELETE" && deletedPayout) {
+          updateQueue.current = updateQueue.current.filter(
+            (payout) => payout.id !== deletedPayout.id
+          );
         }
-      );
-    });
+
+        // ✅ Process batch updates every 500ms
+        if (!updateTimer.current) {
+          updateTimer.current = setTimeout(() => {
+            console.log("✅ Processing batched payout requests updates...");
+            setPayouts((prev) => [...prev, ...updateQueue.current]);
+            updateQueue.current = []; // Clear queue
+            updateTimer.current = null; // Reset timer
+          }, 500);
+        }
+      });
+
+      console.log("✅ Subscribed to payout_requests table");
+    }
+
+    subscribeToRealtimeUpdates();
 
     return () => {
-      console.log("🛑 Unsubscribing from payout_requests table...");
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current(); // ✅ Unsubscribe properly
+        console.log("🛑 Unsubscribed from payout_requests table");
+      }
+      if (updateTimer.current) {
+        clearTimeout(updateTimer.current);
+      }
     };
-  }, [toast]);
+  }, []);
 
   const getBankAccount = (bankAccounts: BankAccount[], payoutId: string) => {
     if (bankAccounts.length === 0) {

@@ -18,16 +18,6 @@ import * as Sentry from "@sentry/nextjs";
 import { sendNotificationEmail } from "@/lib/email";
 import { verificationTaskEmailTemplate } from "@/lib/emails/templates/verificationTaskReady";
 
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  status: string;
-  points: number;
-  joinedAt: Date;
-  verificationStatus: string;
-}
-
 // ✅ Ensure User is an Admin
 export async function requireAdminAuth(): Promise<string> {
   const { userId } = await auth();
@@ -391,8 +381,6 @@ export async function updateAdminSettings(newSettings: any) {
   await redis.del(ADMIN_SETTINGS_CACHE_KEY);
 }
 
-////////--------/
-
 const ANALYTICS_BOTH_CACHE_KEY = "admin:analytics:both";
 const ANALYTICS_BOTH_CACHE_EXPIRATION = 600; // 10 minutes
 
@@ -649,237 +637,63 @@ export async function processPayoutRequest(
   return { success: true };
 }
 
-const ACTIVITIES_CACHE_KEY = "activities";
-const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
-
-export async function getActivities(): Promise<ActivityData[]> {
-  //debugger
-  try {
-    console.log(
-      `[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`
-    );
-
-    // ✅ Check Redis cache first
-    const cachedActivities = await redis.get(ACTIVITIES_CACHE_KEY);
-    if (cachedActivities) {
-      console.log(
-        `[✅ ${new Date().toISOString()}] Returning cached activities`
-      );
-      return cachedActivities as ActivityData[];
-    }
-
-    console.log(
-      `[🗂 ${new Date().toISOString()}] Fetching activities from database...`
-    );
-    const activities = await prisma.activity.findMany({
-      select: {
-        id: true,
-        title: true,
-        type: true,
-        status: true,
-        points: true,
-        createdAt: true,
-        completedAt: true,
-        is_template: true,
-        _count: { select: { completions: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const formattedActivities = activities.map((activity) => ({
-      id: activity.id,
-      title: activity.title,
-      type: activity.type as
-        | "video"
-        | "survey"
-        | "verification"
-        | "ux_ui_test"
-        | "ai_image_task",
-      status: activity.status as "active" | "draft",
-      points: activity.points,
-      createdAt: activity.createdAt?.toISOString() || "",
-      completedAt: activity.completedAt ?? null,
-      isTemplate: activity.is_template,
-      _count: activity._count?.completions ?? 0,
-    }));
-
-    console.log(
-      `[💾 ${new Date().toISOString()}] Caching activities for ${ACTIVITIES_CACHE_EXPIRATION} seconds...`
-    );
-    await redis.set(ACTIVITIES_CACHE_KEY, formattedActivities, {
-      ex: ACTIVITIES_CACHE_EXPIRATION,
-    });
-
-    return formattedActivities;
-  } catch (error) {
-    console.error(
-      `[❌ ${new Date().toISOString()}] getActivities: Error fetching activities:`,
-      error
-    );
-    Sentry.captureException(error); // ✅ Sentry captures this error
-    return [];
-  }
-}
-
-export async function createActivity(
-  data: CreateActivityData
-): Promise<CreateActivityResponse> {
-  try {
-    console.log(`[🚀 ${new Date().toISOString()}] Creating new activity...`);
-
-    const userId = await requireAuthUser();
-    const internalUser = await prisma.user.findUniqueOrThrow({
-      where: { employClerkUserId: userId },
-      select: { id: true },
-    });
-
-    await prisma.activity.create({
-      data: { ...data, userId: internalUser.id, is_template: true },
-    });
-
-    console.log(
-      `[🗑️ ${new Date().toISOString()}] Clearing activity cache after creation...`
-    );
-
-    // ✅ Clear cache to ensure fresh data
-    await redis.del(ACTIVITIES_CACHE_KEY);
-
-    revalidatePath("/dashboard/activities");
-    console.log(
-      `[✅ ${new Date().toISOString()}] Activity created successfully.`
-    );
-
-    return { success: true };
-  } catch (error) {
-    console.error(
-      `[❌ ${new Date().toISOString()}] createActivity: Error creating activity:`,
-      error
-    );
-    Sentry.captureException(error); // ✅ Sentry captures this error
-    return { success: false, error: "Failed to create activity" };
-  }
-}
-
-export async function updateActivity(
-  id: string,
-  data: Partial<CreateActivityData>
-): Promise<CreateActivityResponse> {
-  try {
-    console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
-
-    const userId = await requireAuthUser();
-    const internalUser = await prisma.user.findUniqueOrThrow({
-      where: { employClerkUserId: userId },
-      select: { id: true },
-    });
-
-    await prisma.activity.update({
-      where: { id, userId: internalUser.id }, // ✅ Ensure activity belongs to the user
-      data,
-    });
-
-    console.log(
-      `[🗑️ ${new Date().toISOString()}] Clearing cache after activity update...`
-    );
-
-    // ✅ Clear cache after update
-    await redis.del(ACTIVITIES_CACHE_KEY);
-    console.log(
-      `[✅ ${new Date().toISOString()}] Activity ID: ${id} updated successfully.`
-    );
-
-    return { success: true };
-  } catch (error) {
-    console.error(
-      `[❌ ${new Date().toISOString()}] updateActivity: Error updating activity:`,
-      error
-    );
-    Sentry.captureException(error); // ✅ Sentry captures this error
-    return { success: false, error: "Failed to update activity" };
-  }
-}
-
-export async function updateActivityStatus(activityId: string, status: string) {
-  await requireAdminAuth();
-  console.log(
-    `[🔄 ${new Date().toISOString()}] Updating status of activity ID: ${activityId} to "${status}"`
-  );
-
-  const updatedActivity = await prisma.activity.update({
-    where: { id: activityId },
-    data: { status },
-  });
-
-  console.log(
-    `[🗑️ ${new Date().toISOString()}] Clearing cache after activity status update...`
-  );
-
-  // ✅ Clear cache after status update
-  await redis.del(ACTIVITIES_CACHE_KEY);
-
-  revalidatePath("/dashboard/activities");
-
-  console.log(
-    `[✅ ${new Date().toISOString()}] Activity status updated successfully.`
-  );
-
-  return updatedActivity;
-}
-
-export async function deleteActivity(activityId: string) {
-  await requireAdminAuth(); // ✅ Ensures only admin users can delete
-
-  console.log(
-    `[🗑️ ${new Date().toISOString()}] Deleting activity ID: ${activityId}`
-  );
-
-  await prisma.activity.delete({ where: { id: activityId } });
-
-  console.log(
-    `[🗑️ ${new Date().toISOString()}] Clearing cache after activity deletion...`
-  );
-  // ✅ Clear cache after deletion
-  await redis.del(ACTIVITIES_CACHE_KEY);
-
-  revalidatePath("/admin/activities");
-  revalidatePath("/dashboard/activities");
-
-  console.log(
-    `[✅ ${new Date().toISOString()}] Activity ID: ${activityId} deleted successfully.`
-  );
-
-  return { success: true };
-}
-
 export async function updateVerificationRequest(
   id: string,
   status: string,
   verificationUrl: string
 ) {
-  await prisma.verificationRequest.update({
-    where: { id },
-    data: { status, verificationUrl },
-  });
+  console.log(`🔄 Updating verification request... ID: ${id}, Status: ${status}`);
 
-  // ✅ Fetch the updated request with user email
-  const request = await prisma.verificationRequest.findUnique({
-    where: { id },
-    include: {
-      user: {
-        select: { email: true },
+  try {
+    // ✅ Update the verification request in the database
+    const updatedRequest = await prisma.verificationRequest.update({
+      where: { id },
+      data: { status, verificationUrl },
+    });
+
+    console.log(`✅ Verification request updated successfully:`, updatedRequest);
+
+    // ✅ Fetch the updated request along with user email
+    const request = await prisma.verificationRequest.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { email: true },
+        },
       },
-    },
-  });
+    });
 
-  // ✅ Ensure email exists before sending notification
-  if (request?.user?.email) {
+    if (!request) {
+      console.warn(`⚠️ Verification request not found after update (ID: ${id})`);
+      return { success: false, message: "Verification request not found" };
+    }
+
+    if (!request.user?.email) {
+      console.warn(`⚠️ User email not found for verification request (ID: ${id})`);
+      return { success: false, message: "User email not found" };
+    }
+
+    console.log(`📩 Sending verification email to: ${request.user.email}`);
+
+    // ✅ Generate the email content
     const emailHtml = verificationTaskEmailTemplate(verificationUrl);
 
-    await sendNotificationEmail(
-      request.user.email,
-      "Your Verification Task is Ready",
-      emailHtml
-    );
+    // ✅ Send the email notification
+    await sendNotificationEmail(request.user.email, "Your Verification Task is Ready", emailHtml);
+
+    console.log(`✅ Email sent successfully to ${request.user.email}`);
+
+    return { success: true, message: "Verification request updated and email sent" };
+  } catch (error: unknown) {
+    console.error(`❌ Error updating verification request (ID: ${id}):`, error);
+
+    let errorMessage = "An unknown error occurred"; // Default message
+
+    if (error instanceof Error) {
+      errorMessage = error.message; // ✅ Extract message safely
+    }
+
+    return { success: false, message: "Internal server error", error: errorMessage };
   }
 }
 

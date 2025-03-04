@@ -1,36 +1,44 @@
-
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE! || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE! ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false },
 });
 
 /**
  * Subscribe to Supabase Realtime for any table dynamically
  * @param tableName The name of the table to listen for changes
- * @returns Realtime subscription channel
+ * @param callback Function to handle the update
+ * @returns Function to unsubscribe
  */
-export async function listenForTableChanges(tableName: string) {
+export async function listenForTableChanges(
+  tableName: string,
+  columnName: string,
+  value: string,
+  callback: (payload: any) => void
+) {
   console.log(`📡 Subscribing to Realtime for table: ${tableName}`);
 
-  const channel = supabaseAdmin
+  const channel = supabase
     .channel(`realtime_${tableName}`)
     .on(
       "postgres_changes",
       {
-        event: "*", // Track all changes
+        event: "*",
         schema: "public",
         table: tableName,
+        filter: `${columnName || ""}=eq.${value || ""}`,
       },
-      (payload) => {
-        console.log(`🔄 Change detected in ${tableName}:`, payload);
-        return payload;
-      }
+      callback
     )
     .subscribe();
 
-  return channel;
+  return () => {
+    console.log(`🛑 Unsubscribing from Realtime for table: ${tableName}`);
+    channel.unsubscribe();
+  };
 }

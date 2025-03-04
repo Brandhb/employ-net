@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -24,6 +24,7 @@ import { useAuth } from "@clerk/nextjs";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
+import { getInternalUserIdUtil } from "@/lib/utils";
 
 interface VerificationRequest {
   id: string;
@@ -37,14 +38,19 @@ export default function VerificationRequestsPage() {
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const updateQueue = useRef<VerificationRequest[]>([]); // ✅ Buffer for batched updates
 
   useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    let updateTimer: NodeJS.Timeout | null = null;
+
     async function fetchRequests() {
       setLoading(true);
       try {
         const data = await getVerificationRequests();
         setRequests(data);
       } catch (error) {
+        console.error("❌ Error fetching verification requests:", error);
         toast({
           title: "Error",
           description: "Failed to fetch verification requests.",
@@ -57,45 +63,56 @@ export default function VerificationRequestsPage() {
 
     fetchRequests(); // ✅ Initial Fetch
 
-    // ✅ Listen for Realtime changes
-    listenForTableChanges("verification_requests").then((channel) => {
-      console.log("✅ Subscribed to verification_requests:", channel);
+    async function subscribeToRealtimeUpdates() {
+      unsubscribe = await listenForTableChanges("verification_requests", "userId", getInternalUserIdUtil()!, (payload) => {
+        console.log("🔄 Realtime Update Received:", payload);
 
-      // ✅ Handle Realtime updates with a toast notification
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "verification_requests" },
-        (payload) => {
-          console.log("🔄 Realtime Update:", payload);
+        toast({
+          title: "Verification Requests Updated",
+          description: `A request was ${
+            payload.event === "INSERT"
+              ? "added"
+              : payload.event === "UPDATE"
+              ? "updated"
+              : "deleted"
+          }.`,
+        });
 
-          // ✅ Show a toast notification instead of reloading everything
-          toast({
-            title: "Verification Requests Updated",
-            description: `A request was ${
-              payload.eventType === "INSERT"
-                ? "added"
-                : payload.eventType === "UPDATE"
-                ? "updated"
-                : "deleted"
-            }.`,
-          });
-
-          // ✅ Type assertion: Explicitly cast `payload.new` and `payload.old` as VerificationRequest
-          if (payload.eventType === "INSERT" && payload.new) {
-            setRequests((prev) => [...prev, payload.new as VerificationRequest]);
-          } else if (payload.eventType === "UPDATE" && payload.new) {
-            setRequests((prev) =>
-              prev.map((req) => (req.id === (payload.new as VerificationRequest).id ? (payload.new as VerificationRequest) : req))
-            );
-          } else if (payload.eventType === "DELETE" && payload.old) {
-            setRequests((prev) => prev.filter((req) => req.id !== (payload.old as VerificationRequest).id));
-          }
+        if (payload.event === "INSERT" && payload.new) {
+          updateQueue.current.push(payload.new as VerificationRequest);
+        } else if (payload.event === "UPDATE" && payload.new) {
+          updateQueue.current = updateQueue.current.map((req) =>
+            req.id === (payload.new as VerificationRequest).id ? (payload.new as VerificationRequest) : req
+          );
+        } else if (payload.event === "DELETE" && payload.old) {
+          updateQueue.current = updateQueue.current.filter(
+            (req) => req.id !== (payload.old as VerificationRequest).id
+          );
         }
-      );
-    });
+
+        if (!updateTimer) {
+          updateTimer = setTimeout(() => {
+            console.log("✅ Processing batched updates...");
+            setRequests((prev) => [...prev, ...updateQueue.current]); // Apply batch updates
+            updateQueue.current = []; // Clear queue
+            updateTimer = null; // Reset timer
+          }, 500); // Process updates every 500ms
+        }
+      });
+
+      console.log("✅ Subscribed to verification_requests");
+    }
+
+    subscribeToRealtimeUpdates();
 
     return () => {
-      console.log("🛑 Unsubscribing from verification_requests...");
+      if (unsubscribe) {
+        unsubscribe(); // ✅ Properly remove listener
+        console.log("🛑 Unsubscribed from verification_requests...");
+      }
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+      }
     };
   }, []);
 
@@ -146,7 +163,6 @@ export default function VerificationRequestsPage() {
       setUpdating(null);
     }
   };
-  
 
   return (
     <div className="flex-1 space-y-4">

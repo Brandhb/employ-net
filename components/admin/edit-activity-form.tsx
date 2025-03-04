@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { updateActivity } from "@/app/actions/admin";
+import { updateActivity } from "@/app/actions/admin/activities";
 import { Activity } from "@/types";
 
 const formSchema = z.object({

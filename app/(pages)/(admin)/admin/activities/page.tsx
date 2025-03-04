@@ -29,14 +29,13 @@ import { Search, MoreVertical, Plus, Video, FileText } from "lucide-react";
 import { CreateActivityForm } from "@/components/admin/create-activity-form";
 import { useToast } from "@/hooks/use-toast";
 import {
-  createActivity,
-  deleteActivity,
-  getActivities,
+  
 } from "@/app/actions/admin";
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 import { EditActivityForm } from "@/components/admin/edit-activity-form";
 import { useRouter } from "next/navigation";
 import { CreateActivityData } from "@/app/lib/types/admin";
+import { createActivity, deleteActivity, getActivities } from "@/app/actions/admin/activities";
 
 export default function ActivitiesPage() {
   const [searchQuery, setSearchQuery] = useState("");

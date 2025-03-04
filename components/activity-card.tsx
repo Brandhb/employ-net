@@ -16,7 +16,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, getInternalUserIdUtil } from "@/lib/utils";
 import { getInternalUserId } from "@/app/actions/get-internal-userid";
 
 interface VerificationRequest {
@@ -44,18 +44,14 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
-
   const [isHovered, setIsHovered] = useState(false);
   const [internalUserId, setInternalUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchUserId() {
-      const id = await getInternalUserId(); // ✅ Call server action inside async function
-      setInternalUserId(id);
-    }
-    fetchUserId();
+    const id = getInternalUserIdUtil(); // ✅ Call server action inside async function
+    setInternalUserId(id!);
   }, [userId]);
- 
+
   const userVerificationRequest = Array.isArray(activity.verificationRequests)
     ? activity.verificationRequests.find((req) => req.userId === internalUserId)
     : null;

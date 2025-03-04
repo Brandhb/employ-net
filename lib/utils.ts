@@ -1,5 +1,6 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { getInternalUserId } from "@/app/actions/get-internal-userid";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,4 +14,13 @@ export const isUUID = (id: string): boolean => {
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   return uuidRegex.test(id);
+};
+
+export const getInternalUserIdUtil = () => {
+  let userId;
+  const asyncWrapper = async () => {
+    userId = await getInternalUserId();
+  };
+  asyncWrapper()
+  return userId;
 };
