@@ -7,6 +7,7 @@ import { getInternalUserId } from "@/app/actions/get-internal-userid";
 
 // ✅ Helper function to fetch and cache activities
 async function fetchUserActivities(userId: string) {
+  //debugger
   const cacheKey = `user:activities:${userId}`;
   const cachedData = await redis.get(cacheKey);
 

@@ -7,6 +7,7 @@ import { UserCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import confetti from "canvas-confetti"; // 🎉 Import confetti
+import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
 
 export const InformationalBanner = () => {
   const { user } = useUser();
@@ -34,20 +35,17 @@ export const InformationalBanner = () => {
 
     console.log("🔄 Subscribing to Realtime Updates...");
 
-    // ✅ Supabase Realtime Listener
-    const channel = supabase
-      .channel("realtime-verification")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "users",
-        },
+    let unsubscribe: (() => void) | null = null;
+
+    const subscribe = async () => {
+      unsubscribe = await listenForTableChanges(
+        "users",
+        "employClerkUserId",
+        user.id,
         async (payload) => {
           console.log("🔄 Realtime Update Triggered:", payload);
 
-          if (payload.new.employClerkUserId === user.id) {
+          if (payload.new?.verificationStep !== undefined) {
             console.log("✅ User's verification updated:", payload.new.verificationStep);
             setVerificationStep(payload.new.verificationStep);
 
@@ -77,7 +75,7 @@ export const InformationalBanner = () => {
                 description: "Your identity verification has been successfully completed!",
               });
 
-              const end = Date.now() + 3 * 1000; // 3 seconds of confetti
+              const end = Date.now() + 3 * 1000;
               const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
 
               const frame = () => {
@@ -106,14 +104,17 @@ export const InformationalBanner = () => {
             }
           }
         }
-      )
-      .subscribe();
+      );
+    };
+
+    subscribe();
 
     return () => {
       console.log("🛑 Unsubscribing from Supabase Realtime...");
-      supabase.removeChannel(channel);
+      if (unsubscribe) unsubscribe();
     };
-  }, [user?.id]);
+  }, [user?.id, toast]); // ✅ Include `toast` safely
+  
 
   // ✅ If still loading or already verified, do not show the banner
   if (loading || verificationStep === null || verificationStep >= 1) return null;

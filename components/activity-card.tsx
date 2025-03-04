@@ -44,13 +44,17 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
+//debugger;
   const [isHovered, setIsHovered] = useState(false);
   const [internalUserId, setInternalUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = getInternalUserIdUtil(); // ✅ Call server action inside async function
-    setInternalUserId(id!);
-  }, [userId]);
+    async function fetchUserId() {
+      const id = await getInternalUserId();
+      setInternalUserId(id);
+    }
+    fetchUserId();
+  }, []);
 
   const userVerificationRequest = Array.isArray(activity.verificationRequests)
     ? activity.verificationRequests.find((req) => req.userId === internalUserId)
@@ -142,7 +146,7 @@ export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
     if (verificationUrl) {
       // Ensure URL has proper protocol
       let url = verificationUrl;
-      if (!/^https?:\/\//i.test(url)) {
+      if (!/^https?:\/\//.test(url)) {
         url = "https://" + url;
       }
       window.open(url, "_blank", "noopener,noreferrer");

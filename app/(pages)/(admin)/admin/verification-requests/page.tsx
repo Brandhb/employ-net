@@ -231,7 +231,7 @@ export default function VerificationRequestsPage() {
                           >
                             Open Link
                           </a>
-                        ) : (
+                        ) : request.status === "waiting" ? (
                           <Input
                             type="text"
                             placeholder="Paste verification URL"
@@ -247,6 +247,8 @@ export default function VerificationRequestsPage() {
                               );
                             }}
                           />
+                        ) : (
+                          <span className="text-muted-foreground">✅ Completed</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -295,5 +297,6 @@ export default function VerificationRequestsPage() {
       </Card>
     </div>
   );
+  
   
 }

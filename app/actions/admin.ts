@@ -658,10 +658,15 @@ export async function updateVerificationRequest(
       where: { id },
       include: {
         user: {
-          select: { email: true },
+          select: { 
+            email: true,
+            employClerkUserId: true
+          },
         },
       },
     });
+    const cacheKey = `user:activities:${request?.user.employClerkUserId}`;
+    redis.del(cacheKey)
 
     if (!request) {
       console.warn(`⚠️ Verification request not found after update (ID: ${id})`);
@@ -682,7 +687,7 @@ export async function updateVerificationRequest(
     await sendNotificationEmail(request.user.email, "Your Verification Task is Ready", emailHtml);
 
     console.log(`✅ Email sent successfully to ${request.user.email}`);
-
+    revalidatePath("admin/verification-requests")
     return { success: true, message: "Verification request updated and email sent" };
   } catch (error: unknown) {
     console.error(`❌ Error updating verification request (ID: ${id}):`, error);
