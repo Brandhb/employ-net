@@ -1,59 +1,89 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { updateActivity } from "@/app/actions/admin/activities";
-import { Activity } from "@/types";
 
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { CreateActivityData } from "@/app/lib/types/admin";
+
+// ✅ Schema
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  type: z.enum(["video", "survey", "verification", "ux_ui_test", "ai_image_task"]),
-  status: z.enum(["active", "draft"]),
-  points: z.number().min(1, "Points must be at least 1"),
+  type: z.enum(["video", "survey", "verification"]),
+  status: z.enum(["active", "draft"]).default("draft"),
+  points: z.coerce.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
-  metadata: z.object({
-    playbackId: z.string().optional(),
-    formId: z.string().optional(),
-  }).optional(),
+  metadata: z
+    .object({
+      playbackId: z.string().optional(), // Video metadata
+      formId: z.string().optional(), // Survey metadata
+    })
+    .optional(),
 });
 
-interface EditActivityFormProps {
-  activity: Activity;
-  onClose: () => void;
+// ✅ Response Type
+interface UpdateActivityResponse {
+  success: boolean;
+  error?: string;
 }
 
-export function EditActivityForm({ activity, onClose }: EditActivityFormProps) {
+// ✅ Component
+export function EditActivityForm({ activity, onSubmit }: any) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      title: activity.title,
-      type: activity.type as "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task",
-      status: activity.status as "active" | "draft",
-      points: activity.points,
-      description: activity.description || "",
-      metadata: activity.metadata || {},
-    },
+    defaultValues: activity, // Prefill with existing activity data
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  useEffect(() => {
+    if (activity) {
+      form.reset(activity);
+    }
+  }, [activity, form]);
+
+  // ✅ Submitting form
+  async function handleSubmit(values: CreateActivityData) {
+    console.log("🟢 Updating Activity:", values);
     setIsLoading(true);
+
     try {
-      await updateActivity(activity.id, values);
+      const response = await onSubmit(values);
+
+      if (!response.success) {
+        throw new Error(response.error || "Activity update failed");
+      }
+
       toast({ title: "Success", description: "Activity updated successfully" });
-      onClose(); // Close modal after successful update
     } catch (error) {
-      toast({ title: "Error", description: "Failed to update activity", variant: "destructive" });
+      console.error("❌ Update Error:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -61,65 +91,100 @@ export function EditActivityForm({ activity, onClose }: EditActivityFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField control={form.control} name="title" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Title</FormLabel>
-            <FormControl><Input {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-
-        <FormField control={form.control} name="type" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Type</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* Title */}
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title</FormLabel>
               <FormControl>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <Input placeholder="Enter activity title" {...field} />
               </FormControl>
-              <SelectContent>
-                <SelectItem value="video">Video</SelectItem>
-                <SelectItem value="survey">Survey</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-        <FormField control={form.control} name="status" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Status</FormLabel>
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
+        {/* Type */}
+        <FormField
+          control={form.control}
+          name="type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select activity type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="video">Video</SelectItem>
+                  <SelectItem value="survey">Survey</SelectItem>
+                  <SelectItem value="verification">Verification</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Status */}
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Status</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Points */}
+        <FormField
+          control={form.control}
+          name="points"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Points</FormLabel>
               <FormControl>
-                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <Input type="number" placeholder="Enter points" {...field} />
               </FormControl>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )} />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-        <FormField control={form.control} name="points" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Points</FormLabel>
-            <FormControl>
-              <Input type="number" {...field} onChange={(e) => field.onChange(parseInt(e.target.value))} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
+        {/* Description */}
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Enter activity description" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-        <FormField control={form.control} name="description" render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl><Textarea {...field} /></FormControl>
-            <FormMessage />
-          </FormItem>
-        )} />
-
+        {/* Submit Button */}
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? "Updating..." : "Update Activity"}
         </Button>
