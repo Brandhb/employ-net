@@ -44,7 +44,7 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
-//debugger;
+  //debugger;
   const [isHovered, setIsHovered] = useState(false);
   const [internalUserId, setInternalUserId] = useState<string | null>(null);
 
@@ -60,7 +60,18 @@ export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
     ? activity.verificationRequests.find((req) => req.userId === internalUserId)
     : null;
 
-  const isCompleted = activity.status === "completed";
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  // ✅ Log updates to debug delay
+  useEffect(() => {
+    console.log("🔄 Verification request updated:", userVerificationRequest);
+    if (userVerificationRequest?.status === "completed") {
+      setIsCompleted(true);
+    } else {
+      setIsCompleted(false);
+    }
+  }, [userVerificationRequest]);
+
   const isVerification = activity.type === "verification";
   const verificationStatus = userVerificationRequest?.status;
   const verificationUrl = userVerificationRequest?.verificationUrl;
@@ -156,12 +167,7 @@ export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
   // Get button state based on activity status
   const getButton = () => {
     if (isCompleted) {
-      return (
-        <Button variant="secondary" className="w-full sm:w-auto" disabled>
-          <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-          Completed
-        </Button>
-      );
+      return <></>;
     }
 
     if (isVerification) {
@@ -196,6 +202,7 @@ export function ActivityCard({ activity, onClick, userId }: ActivityCardProps) {
             <Button
               className="w-full sm:w-auto"
               onClick={() => onClick(activity)}
+              disabled={isCompleted} // ✅ Button disabled if activity is completed
             >
               <Lock className="mr-2 h-4 w-4" />
               Request Verification
