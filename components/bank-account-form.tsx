@@ -121,7 +121,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* ✅ Bank Name Dropdown (Fix for empty value) */}
+        {/* ✅ Bank Name Dropdown (Fix for empty value) 
         <FormField
           control={form.control}
           name="bankName"
@@ -156,7 +156,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
             </FormItem>
           )}
         />
-
+*/}
         {/* ✅ BSB Number (6 digits) */}
         <FormField
           control={form.control}
