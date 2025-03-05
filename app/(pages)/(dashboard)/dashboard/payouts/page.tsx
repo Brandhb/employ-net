@@ -121,7 +121,7 @@ export default function PayoutsPage() {
             ) : (
               <div className="text-2xl font-bold">${stats?.availableBalance.toFixed(2) ?? "0.00"}</div>
             )}
-            <p className="text-xs text-muted-foreground">Minimum payout: $10.00</p>
+            <p className="text-xs text-muted-foreground">Minimum payout: $150.00</p>
             {loading ? (
               <Skeleton className="h-10 w-full mt-4" />
             ) : (

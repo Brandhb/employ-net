@@ -109,7 +109,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
       <DialogTrigger asChild>
         <Button 
           className={className} 
-          disabled={availableBalance < 10}
+          disabled={availableBalance < 150000}
           onClick={() => setIsOpen(true)}
         >
           Request Payout
