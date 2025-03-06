@@ -45,7 +45,7 @@ export default clerkMiddleware(async (auth, req) => {
   // ✅ Block access to `/dashboard/activities/*` for unverified users
   if (isActivitiesRoute(req)) {
     if (!isAuthenticated) {
-      console.warn("❌ User not authenticated, redirecting...");
+      console.warn(`❌ User - ${userId} not authenticated, redirecting...`);
       return redirectToSignIn();
     }
 
@@ -54,12 +54,12 @@ export default clerkMiddleware(async (auth, req) => {
 
     if (verificationStep === null || Number(verificationStep) === 0) {
       console.warn(
-        "❌ User is unverified! Redirecting to /dashboard..."
+        `❌ User - ${userId} is unverified! Redirecting to /dashboard...`
       );
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    console.log("✅ User is verified. Access granted.");
+    console.log(`✅ User - ${userId} is verified. Access granted.`);
   }
 
   // ✅ Handle Admin Route Protection
