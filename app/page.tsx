@@ -13,22 +13,7 @@ import { Link as ScrollLink } from "react-scroll";
 export default function LandingPage() {
   const { user } = useUser();
   const userRole = user?.publicMetadata?.role;
-
-  const scrollToSection = (id: string) => {
-    const section = document.getElementById(id);
-    if (section) {
-      const offset = 80; // Adjust for navbar height
-      const elementPosition =
-        section.getBoundingClientRect().top + window.scrollY;
-      const offsetPosition = elementPosition - offset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      });
-    }
-  };
-
+  
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
