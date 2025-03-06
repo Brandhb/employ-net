@@ -83,6 +83,9 @@
 
 /* Apply Tailwind Utilities */
 @layer base {
+  html {
+    scroll-behavior: smooth; /* Smooth scrolling */
+  }
   * {
     @apply border-border;
   }
@@ -90,7 +93,6 @@
     @apply bg-background text-foreground;
     height: 100%;
     overflow-y: auto; /* Enable vertical scrolling */
-    scroll-behavior: smooth; /* Smooth scrolling */
   }
 }
 
@@ -108,6 +110,8 @@ body {
   body {
     height: auto;
     min-height: 100vh; /* Ensure content fills the screen */
+    scroll-behavior: smooth;
+
   }
 
   #__next {
@@ -117,7 +121,8 @@ body {
   }
 }
 
-.cl-cardBox, .cl-signIn-start {
+.cl-cardBox,
+.cl-signIn-start {
   width: 100%;
   max-width: 350px; /* Ensures it doesn't get too wide on large screens */
   min-width: 280px; /* Prevents it from being too small on mobile */
@@ -133,25 +138,19 @@ body {
 
 /* Adjust layout on smaller screens */
 @media (max-width: 640px) {
-  .cl-cardBox, .cl-signIn-start {
+  .cl-cardBox,
+  .cl-signIn-start {
     width: 100%; /* Use most of the available screen space */
     min-width: unset; /* Allow it to shrink if necessary */
   }
 }
 
-
-
-.cl-main, .cl-internal{
+.cl-main,
+.cl-internal {
   width: 100%;
   max-width: 300px;
   gap: 5px;
 }
-
-
-
-
-
-
 
 @layer base {
   * {
