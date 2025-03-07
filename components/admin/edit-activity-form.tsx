@@ -24,12 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CreateActivityData } from "@/app/lib/types/admin";
+import { updateActivity } from "@/app/actions/admin/activities";
+import { EditActivityData } from "@/app/lib/types/admin";
 
 // ✅ Schema
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  type: z.enum(["video", "survey", "verification"]),
+  type: z.enum(["video", "survey", "verification", "ux_ui_test", "ai_image_task"]).default("survey"),
   status: z.enum(["active", "draft"]).default("draft"),
   points: z.coerce.number().min(1, "Points must be at least 1"),
   description: z.string().optional(),
@@ -41,14 +42,14 @@ const formSchema = z.object({
     .optional(),
 });
 
-// ✅ Response Type
-interface UpdateActivityResponse {
-  success: boolean;
-  error?: string;
+
+interface EditActivityFormProps {
+  activity: EditActivityData;
+  onClose: () => void;
 }
 
 // ✅ Component
-export function EditActivityForm({ activity, onSubmit }: any) {
+export function EditActivityForm({ activity, onClose }: EditActivityFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -63,19 +64,16 @@ export function EditActivityForm({ activity, onSubmit }: any) {
     }
   }, [activity, form]);
 
-  // ✅ Submitting form
-  async function handleSubmit(values: CreateActivityData) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     console.log("🟢 Updating Activity:", values);
     setIsLoading(true);
-
     try {
-      const response = await onSubmit(values);
-
+      const response = await updateActivity(activity.id, values);
       if (!response.success) {
         throw new Error(response.error || "Activity update failed");
       }
-
       toast({ title: "Success", description: "Activity updated successfully" });
+      onClose(); // Close modal after successful update
     } catch (error) {
       console.error("❌ Update Error:", error);
       toast({
@@ -83,15 +81,14 @@ export function EditActivityForm({ activity, onSubmit }: any) {
         description:
           error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive",
-      });
-    } finally {
+      });    } finally {
       setIsLoading(false);
     }
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         {/* Title */}
         <FormField
           control={form.control}

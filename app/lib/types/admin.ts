@@ -71,6 +71,17 @@ export interface CreateActivityData {
   testUrl?: string;
 }
 
+export interface EditActivityData {
+  id: string; // UUID
+  title: string;
+  type: "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task"; // ✅ Ensures correct type
+  status: "active" | "draft"; // ✅ Ensures correct type
+  points: number;
+  metadata?: Record<string, any>;
+  description?: string;
+  testUrl?: string;
+}
+
 // Define the return type
 export type CreateActivityResponse = {
   success: boolean;
