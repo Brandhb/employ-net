@@ -34,7 +34,7 @@ import {
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 import { EditActivityForm } from "@/components/admin/edit-activity-form";
 import { useRouter } from "next/navigation";
-import { CreateActivityData } from "@/app/lib/types/admin";
+import { CreateActivityData, EditActivityData } from "@/app/lib/types/admin";
 import { createActivity, deleteActivity, getActivities } from "@/app/actions/admin/activities";
 
 export default function ActivitiesPage() {
@@ -42,7 +42,7 @@ export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [activityToEdit, setActivityToEdit] = useState<Activity | null>(null);
+  const [activityToEdit, setActivityToEdit] = useState<EditActivityData | null>(null);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -88,9 +88,9 @@ export default function ActivitiesPage() {
   
 
   // ✅ Handle activity status update
-  const handleEditActivity = async (activity: ActivityData) => {
+  const handleEditActivity = async (activity: EditActivityData) => {
     console.log("here");
-    setActivityToEdit(activity as unknown as Activity);
+    setActivityToEdit(activity);
     setIsEditModalOpen(true);
   };
 
