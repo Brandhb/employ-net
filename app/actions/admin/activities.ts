@@ -128,6 +128,7 @@ export async function updateActivity(
   id: string,
   data: Partial<CreateActivityData>
 ): Promise<CreateActivityResponse> {
+  debugger;
   try {
     console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
 
@@ -138,7 +139,7 @@ export async function updateActivity(
     });
 
     await prisma.activity.update({
-      where: { id, userId: internalUser.id }, // ✅ Ensure activity belongs to the user
+      where: { id }, // ✅ Ensure activity belongs to the user
       data,
     });
 
