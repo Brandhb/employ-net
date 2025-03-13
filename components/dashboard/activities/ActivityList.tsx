@@ -1,4 +1,4 @@
-import { ActivityCard } from "@/components/activity-card";
+import { ActivityCard } from "@/components/activity/activity-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -18,7 +18,7 @@ interface Activity {
   completedAt: string | null;
   description: string;
   verificationRequests?: VerificationRequest[];
-  instructions?: string;
+  instructions?: { step: number; text: string }[];
 }
 
 interface Props {
@@ -80,7 +80,7 @@ export function ActivityList({
       ) : (
         <>
           {/* ✅ Render Active Activities */}
-          {filteredActiveActivities.length > 0 ? (
+          {filteredActiveActivities.length && (
             filteredActiveActivities.map((activity) => (
               <ActivityCard
                 key={activity.id}
@@ -89,14 +89,10 @@ export function ActivityList({
                 onClick={onClick}
               />
             ))
-          ) : (
-            <p className="text-center text-muted-foreground py-4">
-              No active tasks found.
-            </p>
           )}
 
           {/* ✅ Render Completed Activities */}
-          {filteredCompletedActivities.length > 0 ? (
+          {filteredCompletedActivities.length > 0 && (
             filteredCompletedActivities.map((activity) => (
               <ActivityCard
                 key={activity.id}
@@ -105,10 +101,6 @@ export function ActivityList({
                 onClick={onClick}
               />
             ))
-          ) : (
-            <p className="text-center text-muted-foreground py-4">
-              No completed tasks found.
-            </p>
           )}
         </>
       )}

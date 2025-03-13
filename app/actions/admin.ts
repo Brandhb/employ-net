@@ -653,20 +653,24 @@ export async function updateVerificationRequest(
 
     console.log(`✅ Verification request updated successfully:`, updatedRequest);
 
-    // ✅ Fetch the updated request along with user email
+    // ✅ Fetch the updated request along with user email and activity instructions
     const request = await prisma.verificationRequest.findUnique({
       where: { id },
       include: {
         user: {
-          select: { 
+          select: {
             email: true,
-            employClerkUserId: true
+            employClerkUserId: true,
+          },
+        },
+        activity: {
+          select: {
+            title: true,
+            instructions: true,
           },
         },
       },
     });
-    const cacheKey = `user:activities:${request?.user.employClerkUserId}`;
-    redis.del(cacheKey)
 
     if (!request) {
       console.warn(`⚠️ Verification request not found after update (ID: ${id})`);
@@ -678,27 +682,80 @@ export async function updateVerificationRequest(
       return { success: false, message: "User email not found" };
     }
 
-    console.log(`📩 Sending verification email to: ${request.user.email}`);
+    // ✅ Extract details for email
+    const { email } = request.user;
+    const title = request.activity?.title ?? "Your Task";
 
-    // ✅ Generate the email content
-    const emailHtml = verificationTaskEmailTemplate(verificationUrl);
+    // ✅ Ensure `instructions` is properly parsed
+    let instructionsArray: { step: number; text: string }[] = [];
+
+    try {
+      if (request.activity?.instructions) {
+        // If instructions are stored as a string (JSON string)
+        if (typeof request.activity.instructions === "string") {
+          const parsed = JSON.parse(request.activity.instructions);
+
+          // Ensure it is an array and only contains valid { step: number; text: string }
+          if (Array.isArray(parsed)) {
+            instructionsArray = parsed.filter(
+              (i): i is { step: number; text: string } =>
+                typeof i === "object" && i !== null && "step" in i && "text" in i
+            );
+          }
+        } 
+        // If instructions are already an array of { step: number, text: string }
+        else if (Array.isArray(request.activity.instructions)) {
+          instructionsArray = request.activity.instructions.filter(
+            (i): i is { step: number; text: string } =>
+              typeof i === "object" && i !== null && "step" in i && "text" in i
+          );
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error parsing instructions JSON:", error);
+    }
+
+    // ✅ Ensure instructionsArray is an array before mapping
+    const instructions = instructionsArray.length
+      ? instructionsArray
+          .map((i) => `<p><strong>Step ${i.step}:</strong> ${i.text}</p>`)
+          .join("")
+      : "No specific instructions provided.";
+
+    console.log(`📩 Sending verification email to: ${email}`);
+
+    // ✅ Generate the email content including the instructions
+    const emailHtml = verificationTaskEmailTemplate(verificationUrl, title, instructions);
 
     // ✅ Send the email notification
-    await sendNotificationEmail(request.user.email, "Your Verification Task is Ready", emailHtml);
+    await sendNotificationEmail(email, `Your Verification Task: ${title}`, emailHtml);
 
-    console.log(`✅ Email sent successfully to ${request.user.email}`);
-    revalidatePath("admin/verification-requests")
-    return { success: true, message: "Verification request updated and email sent" };
+    console.log(`✅ Email sent successfully to ${email}`);
+
+    // ✅ Clear the cache
+    const cacheKey = `user:activities:${request.user.employClerkUserId}`;
+    redis.del(cacheKey);
+
+    // ✅ Revalidate the admin page
+    revalidatePath("admin/verification-requests");
+
+    return {
+      success: true,
+      message: "Verification request updated and email sent",
+    };
   } catch (error: unknown) {
     console.error(`❌ Error updating verification request (ID: ${id}):`, error);
 
-    let errorMessage = "An unknown error occurred"; // Default message
-
+    let errorMessage = "An unknown error occurred";
     if (error instanceof Error) {
-      errorMessage = error.message; // ✅ Extract message safely
+      errorMessage = error.message;
     }
 
-    return { success: false, message: "Internal server error", error: errorMessage };
+    return {
+      success: false,
+      message: "Internal server error",
+      error: errorMessage,
+    };
   }
 }
 

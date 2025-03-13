@@ -1,4 +1,4 @@
-export function verificationTaskEmailTemplate(verificationUrl: string) {
+export function verificationTaskEmailTemplate(verificationUrl: string, title: string, instructions: string) {
     return `
     <!DOCTYPE html>
     <html>
@@ -37,6 +37,17 @@ export function verificationTaskEmailTemplate(verificationUrl: string) {
                 margin-bottom: 20px;
                 line-height: 1.6;
             }
+            .instructions-container {
+                background-color: #f1f5f9;
+                padding: 15px;
+                border-left: 4px solid #007bff;
+                text-align: left;
+                font-size: 14px;
+                color: #333;
+                line-height: 1.6;
+                border-radius: 6px;
+                margin-bottom: 20px;
+            }
             .footer {
                 font-size: 14px;
                 color: #888;
@@ -51,12 +62,23 @@ export function verificationTaskEmailTemplate(verificationUrl: string) {
     <body>
         <div class="container">
             <img src="https://employ-net.com/employ-net-logo.png" alt="Employ-Net Logo" class="logo">
+            
             <h1 class="heading">Your Verification Task is Ready!</h1>
+            
             <p class="message">
                 Your verification process has been set up, and you are now ready to complete your task.  
-                Click the button below to get started.
+                Please follow the instructions below and click the button to get started.
             </p>
-  
+
+            <!-- 🔹 Activity Title -->
+            <h2 style="color: #007bff; font-size: 20px; margin-bottom: 10px;">📌 ${title}</h2>
+
+            <!-- 🔹 Instructions Section -->
+            <div class="instructions-container">
+                <strong>Instructions:</strong>
+                <p>${instructions || "No specific instructions provided for this task."}</p>
+            </div>
+
             <!-- ✅ Email-Safe Button -->
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
                 <tr>
@@ -77,13 +99,13 @@ export function verificationTaskEmailTemplate(verificationUrl: string) {
                     </td>
                 </tr>
             </table>
-  
+
             <p class="message">
                 If the button above doesn’t work, you can also access your verification task by clicking this link:
                 <br>
-                <a href="${verificationUrl}" style="color: #007bff;">Link</a>
+                <a href="${verificationUrl}" style="color: #007bff;">${verificationUrl}</a>
             </p>
-  
+
             <p class="footer">
                 Need assistance? Contact our support team at 
                 <a href="mailto:support@employ-net.com">support@employ-net.com</a>
@@ -92,5 +114,4 @@ export function verificationTaskEmailTemplate(verificationUrl: string) {
     </body>
     </html>
     `;
-  }
-  
+}

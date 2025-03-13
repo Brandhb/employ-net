@@ -16,8 +16,6 @@ const ACTIVITIES_CACHE_KEY = "activities";
 const ACTIVITIES_CACHE_EXPIRATION = 300; // 5 minutes
 
 export async function getActivities(): Promise<ActivityData[]> {
-  //debugger
-
   try {
     console.log(
       `[📡 ${new Date().toISOString()}] Checking Redis cache for activities...`
@@ -68,7 +66,7 @@ export async function getActivities(): Promise<ActivityData[]> {
       isTemplate: activity.is_template,
       _count: activity._count?.completions ?? 0,
       description: activity.description || "",
-      instructions: activity.instructions || ""
+      instructions: typeof activity.instructions === 'string' ? JSON.parse(activity.instructions) : activity.instructions, // Parse if it's a string
     }));
 
     console.log(
@@ -132,6 +130,7 @@ export async function updateActivity(
   id: string,
   data: Partial<CreateActivityData>
 ): Promise<CreateActivityResponse> {
+  debugger;
   try {
     console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
 
@@ -142,16 +141,20 @@ export async function updateActivity(
     });
 
     await prisma.activity.update({
-      where: { id }, // ✅ Ensure activity belongs to the user
-      data,
+      where: { id },
+      data: {
+        ...data,
+        instructions: data.instructions
+          ? JSON.stringify(data.instructions)
+          : undefined, // ✅ No need to stringify!
+      },
     });
 
     console.log(
       `[🗑️ ${new Date().toISOString()}] Clearing cache after activity update...`
     );
-
-    // ✅ Clear cache after update
     await redis.del(ACTIVITIES_CACHE_KEY);
+
     console.log(
       `[✅ ${new Date().toISOString()}] Activity ID: ${id} updated successfully.`
     );
@@ -162,7 +165,7 @@ export async function updateActivity(
       `[❌ ${new Date().toISOString()}] updateActivity: Error updating activity:`,
       error
     );
-    Sentry.captureException(error); // ✅ Sentry captures this error
+    Sentry.captureException(error);
     return { success: false, error: "Failed to update activity" };
   }
 }

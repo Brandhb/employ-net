@@ -48,7 +48,6 @@ export interface VerificationSession {
   user: User; // Related user
 }
 
-
 export interface ActivityData {
   _count: number;
   id: string;
@@ -63,9 +62,8 @@ export interface ActivityData {
   userId?: string; // Add userId if necessary
   is_template?: boolean;
   description: string;
-  instructions?: string;
-};
-
+  instructions?: { step: number; text: string }[];
+}
 
 export interface Activity {
   id: string; // UUID
@@ -82,7 +80,7 @@ export interface Activity {
   user: User; // Related user
   is_template: boolean;
   logs: ActivityLog[]; // Related activity logs
-  instructions?: string;
+  instructions?: { step: number; text: string }[];
 }
 
 export interface ActivityLog {
@@ -178,7 +176,7 @@ export interface VerificationTask {
 
 export {};
 
-export type Roles = 'admin' | 'moderator'
+export type Roles = "admin" | "moderator";
 
 /*declare global {
   interface ClerkAuthorization {
@@ -190,8 +188,7 @@ export type Roles = 'admin' | 'moderator'
 declare global {
   interface CustomJwtSessionClaims {
     metadata: {
-      role? : Roles
-    }
-   
+      role?: Roles;
+    };
   }
 }

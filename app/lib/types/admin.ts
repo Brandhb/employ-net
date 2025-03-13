@@ -69,6 +69,7 @@ export interface CreateActivityData {
   metadata?: Record<string, any>;
   description?: string;
   testUrl?: string;
+  instructions?: { step: number; text: string }[];
 }
 
 export interface EditActivityData {
@@ -80,6 +81,7 @@ export interface EditActivityData {
   metadata?: Record<string, any>;
   description?: string;
   testUrl?: string;
+  instructions?: { step: number; text: string }[];
 }
 
 // Define the return type

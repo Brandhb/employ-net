@@ -28,7 +28,7 @@ interface Activity {
   completedAt: string | null;
   description: string;
   verificationRequests?: VerificationRequest[]; // ✅ Ensure proper typing
-  instructions?: string;
+  instructions?: { step: number; text: string }[]; // ✅ Structured steps
 }
 
 export default function ActivitiesPage() {
@@ -54,6 +54,7 @@ export default function ActivitiesPage() {
   }, []);
 
   const fetchActivities = async () => {
+    //debugger;
     setIsLoading(true);
     try {
       const res = await fetch("/api/activities/user");

@@ -21,7 +21,7 @@ interface Activity {
   completedAt: string | null;
   description: string;
   verificationRequests?: VerificationRequest[];
-  instructions?: string;
+  instructions?: { step: number; text: string }[];
 }
 
 interface Props {

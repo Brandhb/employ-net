@@ -5,9 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { getInternalUserId } from "@/app/actions/get-internal-userid";
 
-// ✅ Helper function to fetch and cache activities
 async function fetchUserActivities(userId: string) {
-  //debugger
+  ;
   const cacheKey = `user:activities:${userId}`;
   const cachedData = await redis.get(cacheKey);
 
@@ -23,14 +22,14 @@ async function fetchUserActivities(userId: string) {
     where: { employClerkUserId: userId },
   });
   if (!user) return { error: "User not found" };
-  //debugger;
 
-  const InternalUserId = await getInternalUserId()
+  const InternalUserId = await getInternalUserId();
+
   // ✅ Fetch active template activities (now includes verificationRequests)
   const templateActivities = await prisma.activity.findMany({
     where: { is_template: true, status: "active" },
     include: {
-      verificationRequests: { // ✅ Include verificationRequests
+      verificationRequests: {
         where: { userId: InternalUserId! },
         select: {
           id: true,
@@ -62,7 +61,8 @@ async function fetchUserActivities(userId: string) {
       status: "pending",
       completedAt: null,
       verificationRequests: template.verificationRequests || [],
-      desription: template.description
+      description: template.description,
+      instructions: typeof template.instructions === 'string' ? JSON.parse(template.instructions) : template.instructions, // Parse if it's a string
     }));
 
   // ✅ Process completed activities
