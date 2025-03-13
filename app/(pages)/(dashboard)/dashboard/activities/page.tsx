@@ -28,6 +28,7 @@ interface Activity {
   completedAt: string | null;
   description: string;
   verificationRequests?: VerificationRequest[]; // ✅ Ensure proper typing
+  instructions?: string;
 }
 
 export default function ActivitiesPage() {

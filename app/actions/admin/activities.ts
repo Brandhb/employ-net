@@ -45,6 +45,8 @@ export async function getActivities(): Promise<ActivityData[]> {
         createdAt: true,
         completedAt: true,
         is_template: true,
+        description: true,
+        instructions: true,
         _count: { select: { completions: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -65,6 +67,8 @@ export async function getActivities(): Promise<ActivityData[]> {
       completedAt: activity.completedAt ?? null,
       isTemplate: activity.is_template,
       _count: activity._count?.completions ?? 0,
+      description: activity.description || "",
+      instructions: activity.instructions || ""
     }));
 
     console.log(

@@ -91,6 +91,7 @@ model Activity {
   submissionfileurl    String?
   submissionstatus     String?                @default("pending")
   adminstatus          String?                @default("waiting")
+  instructions         String?
   user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs                 ActivityLog[]
   completions          activity_completions[]

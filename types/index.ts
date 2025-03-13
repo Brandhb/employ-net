@@ -62,6 +62,8 @@ export interface ActivityData {
   metadata?: Record<string, any>;
   userId?: string; // Add userId if necessary
   is_template?: boolean;
+  description: string;
+  instructions?: string;
 };
 
 
@@ -80,6 +82,7 @@ export interface Activity {
   user: User; // Related user
   is_template: boolean;
   logs: ActivityLog[]; // Related activity logs
+  instructions?: string;
 }
 
 export interface ActivityLog {

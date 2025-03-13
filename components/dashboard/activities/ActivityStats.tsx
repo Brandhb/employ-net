@@ -16,7 +16,8 @@ interface Activity {
   status: string;
   completedAt: string | null;
   description: string;
-  verificationRequests?: VerificationRequest[]; // ✅ Ensure proper typing
+  verificationRequests?: VerificationRequest[];
+  instructions?: string
 }
 
 interface Props {
