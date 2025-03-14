@@ -22,7 +22,6 @@ export const ActivityVerificationDialog = ({
   
   // Handle opening verification URL in new tab
   const handleOpenVerificationUrl = (e: React.MouseEvent) => {
-    debugger;
     e.stopPropagation();
     if (verificationUrl) {
       // Ensure URL has proper protocol

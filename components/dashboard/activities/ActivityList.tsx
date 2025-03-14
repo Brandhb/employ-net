@@ -1,25 +1,8 @@
+// components/activity/ActivityList.tsx
 import { ActivityCard } from "@/components/activity/activity-card";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface VerificationRequest {
-  id: string;
-  userId: string;
-  status: "waiting" | "ready" | "completed";
-  verificationUrl?: string | null;
-}
-
-interface Activity {
-  id: string;
-  title: string;
-  type: string;
-  points: number;
-  status: string;
-  completedAt: string | null;
-  description: string;
-  verificationRequests?: VerificationRequest[];
-  instructions?: { step: number; text: string }[];
-}
+import { ActivityContextProvider, Activity } from "@/lib/contexts/ActivityContext";
 
 interface Props {
   userId: string;
@@ -28,7 +11,8 @@ interface Props {
   searchQuery: string;
   activeFilter: string | null;
   onClick: (activity: Activity) => void;
-  isLoading: boolean; // ✅ Added to control loading state
+  isLoading: boolean;
+  activeNavigationId: string;
 }
 
 export function ActivityList({
@@ -39,22 +23,20 @@ export function ActivityList({
   activeFilter,
   onClick,
   isLoading,
+  activeNavigationId,
 }: Props) {
-  // Filtered Active Activities
   const filteredActiveActivities = activeActivities.filter(
     (activity) =>
       activity.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
       (!activeFilter || activity.type === activeFilter)
   );
 
-  // Filtered Completed Activities
   const filteredCompletedActivities = completedActivities.filter(
     (activity) =>
       activity.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
       (!activeFilter || activity.type === activeFilter)
   );
 
-  // ✅ Skeleton Placeholder (Loading State)
   const SkeletonCard = () => (
     <Card className="animate-pulse p-4 w-full">
       <CardHeader className="flex flex-col items-start space-y-2 px-2">
@@ -74,34 +56,30 @@ export function ActivityList({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {/* ✅ Show Skeletons if Loading */}
       {isLoading ? (
         [...Array(6)].map((_, index) => <SkeletonCard key={index} />)
       ) : (
         <>
-          {/* ✅ Render Active Activities */}
-          {filteredActiveActivities.length && (
+          {filteredActiveActivities.length > 0 &&
             filteredActiveActivities.map((activity) => (
-              <ActivityCard
+              <ActivityContextProvider
                 key={activity.id}
                 activity={activity}
                 userId={userId}
-                onClick={onClick}
-              />
-            ))
-          )}
-
-          {/* ✅ Render Completed Activities */}
-          {filteredCompletedActivities.length > 0 && (
+              >
+                <ActivityCard onClick={onClick} isNavigating={activity.id === activeNavigationId} />
+              </ActivityContextProvider>
+            ))}
+          {filteredCompletedActivities.length > 0 &&
             filteredCompletedActivities.map((activity) => (
-              <ActivityCard
+              <ActivityContextProvider
                 key={activity.id}
                 activity={activity}
                 userId={userId}
-                onClick={onClick}
-              />
-            ))
-          )}
+              >
+                <ActivityCard onClick={onClick} isNavigating={activity.id === activeNavigationId} />
+              </ActivityContextProvider>
+            ))}
         </>
       )}
     </div>

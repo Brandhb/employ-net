@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +19,7 @@ interface VerificationRequest {
   verificationUrl?: string | null;
 }
 
-interface Activity {
+export interface Activity {
   id: string;
   title: string;
   type: string;
@@ -27,8 +27,20 @@ interface Activity {
   status: string;
   completedAt: string | null;
   description: string;
-  verificationRequests?: VerificationRequest[]; // ✅ Ensure proper typing
-  instructions?: { step: number; text: string }[]; // ✅ Structured steps
+  verificationRequests?: VerificationRequest[];
+  instructions?: { step: number; text: string }[];
+}
+
+interface Props {
+  userId: string;
+  activeActivities: Activity[];
+  completedActivities: Activity[];
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  handleActivityClick: (activity: Activity) => void;
+  isLoading: boolean;
+  searchQuery: string;
+  activeFilter: string | null;
 }
 
 export default function ActivitiesPage() {
@@ -37,16 +49,15 @@ export default function ActivitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
-  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
-    []
-  );
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>([]);
   const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("active");
-  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const [activeNavigationId, setActiveNavigationId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   // Fetch Initial Activities from API
   useEffect(() => {
@@ -54,7 +65,6 @@ export default function ActivitiesPage() {
   }, []);
 
   const fetchActivities = async () => {
-    //debugger;
     setIsLoading(true);
     try {
       const res = await fetch("/api/activities/user");
@@ -67,74 +77,31 @@ export default function ActivitiesPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setTimeout(() => setIsLoading(false), 500); // Smooth transition
+      setTimeout(() => setIsLoading(false), 500); // Smooth transition delay
     }
   };
 
-  // ✅ Refresh Handler
+  // Refresh Handler
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchActivities();
     setIsRefreshing(false);
   };
 
-  // ✅ Subscribe to Supabase Realtime Updates for Activities
-  {
-    /* Disabled for now
-  useEffect(() => {
-    async function subscribeToRealtimeUpdates() {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current(); // ✅ Remove previous listener
-      }
-
-      unsubscribeRef.current = await listenForTableChanges("activities", "userId", getInternalUserIdUtil()!, (payload) => {
-        console.log("🔄 Activity update received:", payload);
-
-        toast({
-          title: "Activity Update",
-          description: `An activity was ${
-            payload.event === "INSERT" ? "added" : payload.event === "UPDATE" ? "updated" : "deleted"
-          }.`,
-        });
-
-        const updatedActivity = payload.new as Activity;
-        const deletedActivity = payload.old as Activity;
-
-        if (payload.event === "INSERT" && updatedActivity) {
-          setActiveActivities((prev) => [...prev, updatedActivity]);
-        } else if (payload.event === "UPDATE" && updatedActivity) {
-          setActiveActivities((prev) =>
-            prev.map((activity) => (activity.id === updatedActivity.id ? updatedActivity : activity))
-          );
-        } else if (payload.event === "DELETE" && deletedActivity) {
-          setActiveActivities((prev) => prev.filter((activity) => activity.id !== deletedActivity.id));
-        }
-      });
-
-      console.log("✅ Subscribed to activities updates.");
-    }
-
-    subscribeToRealtimeUpdates();
-
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        console.log("🛑 Unsubscribed from activities updates.");
-      }
-    };
-  }, []);
-*/
-  }
-
-  // ✅ Handle Activity Click
-  const handleActivityClick = (activity: Activity) => {
-    if (activity.type === "verification") {
-      setSelectedTask(activity);
-      setIsDialogOpen(true);
-    } else {
+ // Handle Activity Click with Optimistic UI update
+ const handleActivityClick = (activity: Activity) => {
+  if (activity.type === "verification") {
+    setSelectedTask(activity);
+    setIsDialogOpen(true);
+  } else {
+    // Immediately mark the clicked card as loading
+    setActiveNavigationId(activity.id);
+    startTransition(() => {
+      // Optionally prefetch the route before navigation
       router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
-    }
-  };
+    });
+  }
+};
 
   const handleRequestVerification = async () => {
     if (!selectedTask) return;
@@ -161,7 +128,7 @@ export default function ActivitiesPage() {
     }
   };
 
-  // ✅ Filter activities based on search query and active filter
+  // Filter activities based on search query and active filter
   const filteredActiveActivities = activeActivities.filter(
     (activity) =>
       (!activeFilter || activity.type === activeFilter) &&
@@ -197,8 +164,9 @@ export default function ActivitiesPage() {
         setActiveTab={setActiveTab}
         handleActivityClick={handleActivityClick}
         isLoading={isLoading}
-        searchQuery={""}
-        activeFilter={null}
+        searchQuery={searchQuery}
+        activeFilter={activeFilter}
+        activeNavigationId={activeNavigationId!}
       />
       <VerificationConfirmationDialog
         isOpen={isDialogOpen}

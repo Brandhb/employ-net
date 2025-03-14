@@ -12,7 +12,7 @@ interface VerificationRequest {
   verificationUrl?: string | null;
 }
 
-interface Activity {
+export interface Activity {
   id: string;
   title: string;
   type: string;
@@ -34,6 +34,7 @@ interface Props {
   isLoading: boolean;
   searchQuery: string;
   activeFilter: string | null;
+  activeNavigationId: string;
 }
 
 export function ActivityTabs({
@@ -46,6 +47,7 @@ export function ActivityTabs({
   isLoading,
   searchQuery,
   activeFilter,
+  activeNavigationId,
 }: Props) {
   return (
     <Tabs
@@ -82,7 +84,8 @@ export function ActivityTabs({
             searchQuery={searchQuery}
             activeFilter={activeFilter}
             onClick={handleActivityClick}
-            isLoading={true} // ✅ Will show Skeletons
+            isLoading={true}
+            activeNavigationId={activeNavigationId}
           />
         ) : activeActivities.length > 0 ? (
           <ActivityList
@@ -93,6 +96,7 @@ export function ActivityTabs({
             activeFilter={activeFilter}
             onClick={handleActivityClick}
             isLoading={false}
+            activeNavigationId={activeNavigationId}
           />
         ) : (
           <NoTasksMessage type="active" />
@@ -108,7 +112,8 @@ export function ActivityTabs({
             searchQuery={searchQuery}
             activeFilter={activeFilter}
             onClick={handleActivityClick}
-            isLoading={true} // ✅ Will show Skeletons
+            isLoading={true}
+            activeNavigationId={activeNavigationId}
           />
         ) : completedActivities.length > 0 ? (
           <ActivityList
@@ -119,6 +124,7 @@ export function ActivityTabs({
             activeFilter={activeFilter}
             onClick={handleActivityClick}
             isLoading={false}
+            activeNavigationId={activeNavigationId}
           />
         ) : (
           <NoTasksMessage type="completed" />
@@ -128,7 +134,6 @@ export function ActivityTabs({
   );
 }
 
-// ✅ Reusable Empty State for No Tasks
 function NoTasksMessage({ type }: { type: "active" | "completed" }) {
   return (
     <motion.div

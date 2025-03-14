@@ -1,15 +1,37 @@
 // components/ActivityButton.tsx
 
 import { Button } from "@/components/ui/button";
-import { Lock, CheckCircle, ExternalLink, Clock, Eye } from "lucide-react";
+import { useActivityContext } from "@/lib/contexts/ActivityContext";
+import { Lock, CheckCircle, ExternalLink, Clock, Eye, Loader2 } from "lucide-react";
+import { MouseEventHandler } from "react"; // Import MouseEventHandler type
+
+interface VerificationRequest {
+  id: string;
+  userId: string;
+  status: "waiting" | "ready" | "completed";
+  verificationUrl?: string | null;
+}
+
+interface Activity {
+  id: string;
+  title: string;
+  type: string;
+  points: number;
+  status: string;
+  completedAt: string | null;
+  description: string;
+  verificationRequests?: VerificationRequest[];
+}
 
 interface ActivityButtonProps {
-  handleOpenVerificationUrl: (e: React.MouseEvent) => void;
+  handleOpenVerificationUrl: MouseEventHandler<HTMLButtonElement>; // Updated to MouseEventHandler
+  handleRequestVerification: MouseEventHandler<HTMLButtonElement>;
   isCompleted: boolean;
   isVerification: boolean;
   verificationStatus?: "waiting" | "ready" | "completed";
-  onClick: (e: React.MouseEvent) => void; // Accepts mouse event
-  verificationUrl?: string | null; // Allow null values
+  activity: Activity;
+  onClick: (activity: Activity) => void; // Function to handle activity
+  verificationUrl?: string | null;
   isLoading: boolean;
 }
 
@@ -20,8 +42,10 @@ export const ActivityButton = ({
   onClick,
   verificationUrl,
   handleOpenVerificationUrl,
+  handleRequestVerification,
   isLoading,
 }: ActivityButtonProps) => {
+  const { activity, setActivity } = useActivityContext(); // Use context
 
   if (isCompleted) return <></>;
 
@@ -39,7 +63,7 @@ export const ActivityButton = ({
           <Button
             variant="outline"
             className="w-full sm:w-auto bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 hover:border-blue-300 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
-            onClick={handleOpenVerificationUrl} // Call the function directly
+            onClick={handleOpenVerificationUrl}
           >
             <ExternalLink className="mr-2 h-4 w-4" />
             Continue Task
@@ -56,10 +80,19 @@ export const ActivityButton = ({
         return (
           <Button
             className="w-full sm:w-auto"
-            onClick={onClick} // Open verification confirmation dialog
-            disabled={isLoading} // Disable button if loading
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick(activity);
+            }}
+            disabled={isLoading}
           >
-            {isLoading ? <span>Loading...</span> : <><Lock className="mr-2 h-4 w-4" /> Request Verification</>}
+            {isLoading ? (
+              <span>Loading...</span>
+            ) : (
+              <>
+                <Lock className="mr-2 h-4 w-4" /> Request Verification
+              </>
+            )}
           </Button>
         );
     }
@@ -68,12 +101,25 @@ export const ActivityButton = ({
   return (
     <Button
       className="w-full sm:w-auto group"
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(activity);
+      }}
+      disabled={isLoading}
     >
-      <span className="mr-2 transition-transform group-hover:translate-x-1">
-        <Lock className="h-4 w-4" />
-      </span>
-      Start Task
+      {isLoading ? (
+        <span className="flex items-center space-x-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Processing...</span>
+        </span>
+      ) : (
+        <>
+          <span className="mr-2 transition-transform group-hover:translate-x-1">
+            <Lock className="h-4 w-4" />
+          </span>
+          Start Task
+        </>
+      )}
     </Button>
   );
 };

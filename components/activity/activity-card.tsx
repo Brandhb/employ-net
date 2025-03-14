@@ -7,9 +7,21 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { getInternalUserId } from "@/app/actions/get-internal-userid";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
+import { useActivityContext } from "@/lib/contexts/ActivityContext";
 import { ActivityButton } from "./ActivityButton";
 import { ActivityStatusBadge } from "./ActivityStatusBadge";
 import { ActivityProgressBar } from "./ActivityProgressBar";
@@ -50,25 +62,27 @@ interface Activity {
 }
 
 interface ActivityCardProps {
-  activity: Activity;
-  userId?: string;
   onClick: (activity: Activity) => void;
+  isNavigating: boolean;
 }
 
-export function ActivityCard({ activity, onClick }: ActivityCardProps) {
+export function ActivityCard({ onClick, isNavigating }: ActivityCardProps) {
+  // Call all hooks unconditionally
+  const { activity, setActivity, userId, isModalOpen, setIsModalOpen } =
+    useActivityContext();
   const [isHovered, setIsHovered] = useState(false);
   const [internalUserId, setInternalUserId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isVerificationDialogOpen, setIsVerificationDialogOpen] = useState(false);
+  const [isVerificationDialogOpen, setIsVerificationDialogOpen] =
+    useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Parse the instructions only if they're not empty
+  // Parse instructions if provided (default to empty array)
   const instructionsArray =
-    typeof activity.instructions === "string"
+    activity && typeof activity.instructions === "string"
       ? JSON.parse(activity.instructions)
-      : activity.instructions;
+      : activity?.instructions || [];
 
   useEffect(() => {
     async function fetchUserId() {
@@ -78,8 +92,11 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
     fetchUserId();
   }, []);
 
-  const userVerificationRequest = Array.isArray(activity.verificationRequests)
-    ? activity.verificationRequests.find((req) => req.userId === internalUserId)
+  const userVerificationRequest = activity?.verificationRequests &&
+    Array.isArray(activity.verificationRequests)
+    ? activity.verificationRequests.find(
+        (req) => req.userId === internalUserId
+      )
     : null;
 
   useEffect(() => {
@@ -90,7 +107,7 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
     }
   }, [userVerificationRequest]);
 
-  const isVerification = activity.type === "verification";
+  const isVerification = activity?.type === "verification";
   const verificationStatus = userVerificationRequest?.status;
   const verificationUrl = userVerificationRequest?.verificationUrl;
 
@@ -103,11 +120,13 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
   const handleRequestVerification = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsVerificationDialogOpen(true);
-    onClick(activity);
+    if (activity) {
+      onClick(activity);
+    }
   };
 
   const handleOpenVerificationUrl = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop the click event from propagating to the card
+    e.stopPropagation();
     if (verificationUrl) {
       let url = verificationUrl;
       if (!/^https?:\/\//.test(url)) {
@@ -116,7 +135,11 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   };
-  
+
+  // Instead of returning null early, render a fallback UI if activity is null.
+  if (!activity) {
+    return <div className="p-4 text-center">No activity available</div>;
+  }
 
   return (
     <>
@@ -130,23 +153,22 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
         onClick={handleOpenFullInfo} // Only this opens full modal
         className="cursor-pointer"
       >
-       <Card
+        <Card
           className={cn(
             "w-full overflow-hidden relative",
             "border-t-4 transition-all duration-300",
             isCompleted
               ? "border-t-green-500"
               : `border-t-${
-                  activity.type === "video"
-                    ? "blue"
-                    : activity.type === "survey"
-                    ? "purple"
-                    : "green"
-                }-500`,
+                activity.type === "video"
+                  ? "blue"
+                  : activity.type === "survey"
+                  ? "purple"
+                  : "green"
+              }-500`,
             "hover:shadow-lg dark:hover:shadow-primary/5"
           )}
         >
-          
           {/* Status Badge */}
           {isVerification && verificationStatus && (
             <ActivityStatusBadge verificationStatus={verificationStatus} />
@@ -177,8 +199,12 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
                   </span>
                   <span className="mx-2 text-muted-foreground">•</span>
                   <div className="flex items-center">
-                    <span className="text-sm font-medium">{activity.points}</span>
-                    <span className="text-sm text-muted-foreground ml-1">points</span>
+                    <span className="text-sm font-medium">
+                      {activity.points}
+                    </span>
+                    <span className="text-sm text-muted-foreground ml-1">
+                      points
+                    </span>
                   </div>
                 </div>
               </div>
@@ -214,21 +240,23 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
                         ? verificationStatus === "ready"
                           ? "Waiting for admin verification"
                           : `Status: ${
-                            verificationStatus.charAt(0).toUpperCase() +
-                            verificationStatus.slice(1)
-                          }`
+                              verificationStatus.charAt(0).toUpperCase() +
+                              verificationStatus.slice(1)
+                            }`
                         : "Not started"}
                     </span>
                   )}
                 </div>
-                 <ActivityButton
+                <ActivityButton
                   handleOpenVerificationUrl={handleOpenVerificationUrl}
+                  handleRequestVerification={handleRequestVerification}
                   isCompleted={isCompleted}
                   isVerification={isVerification}
                   verificationStatus={verificationStatus}
-                  onClick={handleOpenVerificationUrl}
-                  isLoading={isLoading}
+                  onClick={onClick}
+                  isLoading={isNavigating}
                   verificationUrl={verificationUrl}
+                  activity={activity}
                 />
               </div>
             </div>
@@ -247,8 +275,12 @@ export function ActivityCard({ activity, onClick }: ActivityCardProps) {
           </DialogHeader>
 
           <div className="mt-4 space-y-3">
-            <p><strong>Type:</strong> {activity.type}</p>
-            <p><strong>Points:</strong> {activity.points}</p>
+            <p>
+              <strong>Type:</strong> {activity.type}
+            </p>
+            <p>
+              <strong>Points:</strong> {activity.points}
+            </p>
 
             {activity.instructions && (
               <CollapsibleInstructions

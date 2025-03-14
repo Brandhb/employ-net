@@ -130,7 +130,6 @@ export async function updateActivity(
   id: string,
   data: Partial<CreateActivityData>
 ): Promise<CreateActivityResponse> {
-  debugger;
   try {
     console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
 
