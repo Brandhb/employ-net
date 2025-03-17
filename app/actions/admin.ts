@@ -795,10 +795,19 @@ export async function markVerificationCompleted(requestId: string) {
     const updatedRequest = await prisma.verificationRequest.update({
       where: { id: requestId },
       data: { status: "completed" },
-      include: { user: true }, // Ensure we have user data
+      include: { user: true, activity: true}, // Ensure we have user data
     });
+  
+    // ✅ Add activity points to the user without changing the general activity to complete
+    const updatedUser = await prisma.user.update({
+      where: { id: updatedRequest.user.id },
+      data: {
+        points_balance: { increment: updatedRequest.activity?.points },
+      },
+    })
 
     // ✅ Find the related activity and update its status
+   {/*
     await prisma.activity.updateMany({
       where: {
         userId: updatedRequest.userId, // Update activities for this user
@@ -806,6 +815,7 @@ export async function markVerificationCompleted(requestId: string) {
       },
       data: { status: "completed" },
     });
+    */} 
 
     return { success: true };
   } catch (error) {

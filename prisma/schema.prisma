@@ -201,7 +201,7 @@ model PayoutRequest {
 model BankAccount {
   id                String   @id @default(uuid()) @db.Uuid
   userId            String   @map("user_id") @db.Uuid
-  bankName          String
+  bankName          String?
   accountNumber     String
   bsb               String
   accountType       String

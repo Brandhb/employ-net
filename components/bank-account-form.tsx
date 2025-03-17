@@ -44,7 +44,6 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
   const form = useForm<BankAccountFormData>({
     resolver: zodResolver(bankAccountSchema),
     defaultValues: existingAccount || {
-      bankName: "",
       accountNumber: "",
       bsb: "",
       accountType: "checking",
@@ -53,7 +52,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
   });
 
   // ✅ Fetch banks from API
-  useEffect(() => {
+ {/* useEffect(() => {
     const fetchBanks = async () => {
       setIsBanksLoading(true);
       try {
@@ -76,16 +75,16 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
   
     fetchBanks();
   }, []);
-  
+*/}
   
 
   async function onSubmit(values: BankAccountFormData) {
+    debugger;
     if (!userId) return;
 
     setIsLoading(true);
     try {
       const bankData = {
-        bankName: values.bankName,
         accountNumber: values.accountNumber,
         bsb: values.bsb,
         accountType: values.accountType as "checking" | "savings",
@@ -120,7 +119,12 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(
+    onSubmit,
+    (errors) => {
+      console.log("Form validation errors:", errors); // Check if there are any errors
+    }
+  )} className="space-y-4">
         {/* ✅ Bank Name Dropdown (Fix for empty value) 
         <FormField
           control={form.control}

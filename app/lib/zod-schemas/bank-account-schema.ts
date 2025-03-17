@@ -2,11 +2,11 @@ import { z } from "zod";
 
 // Validation schema with Australian format (BSB + Account Number)
 export const bankAccountSchema = z.object({
-  bankName: z.string()
+  /*bankName: z.string()
     .min(2, "Bank name must be at least 2 characters")
     .max(100, "Bank name must be less than 100 characters")
-    .trim(),
-  accountNumber: z.string()
+    .trim(),*/
+    accountNumber: z.string()
     .min(6, "Account number must be at least 6 digits")
     .max(9, "Account number must be at most 9 digits")
     .regex(/^\d+$/, "Account number must contain only digits"),
@@ -26,7 +26,7 @@ export type BankAccountFormData = z.infer<typeof bankAccountSchema>;
 // ✅ Helper function to map database format (backend) to form format (frontend)
 export function mapBankAccountToFormData(bankAccount: any): BankAccountFormData {
   return {
-    bankName: bankAccount.bankName,
+    //bankName: bankAccount.bankName,
     accountNumber: bankAccount.accountNumber,
     bsb: bankAccount.bsb || bankAccount.routingNumber, // ✅ Ensure backward compatibility
     accountType: bankAccount.accountType as "checking" | "savings",
