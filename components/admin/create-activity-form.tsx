@@ -25,7 +25,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CreateActivityData } from "@/app/lib/types/admin";
-import { ChevronDown, ChevronUp, Plus, Trash, ClipboardList } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Trash,
+  ClipboardList,
+} from "lucide-react";
 
 // ✅ Schema (Includes Ordered Instructions as an Array)
 const formSchema = z.object({
@@ -180,13 +186,33 @@ export function CreateActivityForm({ onSubmit }: any) {
                 <FormItem>
                   <FormLabel>Points</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="Enter points" {...field} />
+                    <Input
+                      type="number"
+                      placeholder="Enter points"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+          {/* Typeform ID (for Survey type) */}
+          {form.watch("type") === "survey" && (
+            <FormField
+              control={form.control}
+              name="metadata.formId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Typeform ID</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Enter Typeform ID" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {/* Instructions - Dynamic List */}
           <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4">
