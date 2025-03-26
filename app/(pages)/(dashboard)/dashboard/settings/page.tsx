@@ -104,7 +104,6 @@ export default function SettingsPage() {
                     </div>
                   ) : bankAccount ? (
                     <>
-                      <p className="font-medium">{bankAccount.bankName}</p>
                       <p className="text-sm text-muted-foreground">
                         Account ending in ****
                         {bankAccount.accountNumber.slice(-4)}
