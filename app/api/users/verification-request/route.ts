@@ -1,34 +1,54 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { sendNotificationEmail } from "@/lib/email"; // ✅ Uses your existing email function
+import { sendNotificationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
     if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
-    const { activityId } = await req.json(); // ✅ Use `activityId`
+    const { activityId } = await req.json();
+    if (!activityId) return new NextResponse("Activity ID is required", { status: 400 });
 
-    const user = await prisma.user.findUnique({ where: { employClerkUserId: userId } });
+    const user = await prisma.user.findUnique({
+      where: { employClerkUserId: userId },
+    });
     if (!user) return new NextResponse("User not found", { status: 404 });
 
-    // ✅ Check if activityId is valid
-    const activity = await prisma.activity.findUnique({ where: { id: activityId } });
+    const activity = await prisma.activity.findUnique({
+      where: { id: activityId },
+    });
     if (!activity || activity.type !== "verification") {
       return new NextResponse("Invalid verification task", { status: 400 });
     }
 
-    // ✅ Create a verification request linked to the activity
+    // ✅ Check if a request already exists for this user + activity
+    const existingRequest = await prisma.verificationRequest.findFirst({
+      where: {
+        userId: user.id,
+        activityId,
+        // Optional: only block if status is not "completed"
+        status: { in: ["waiting", "ready"] },
+      },
+    });
+
+    if (existingRequest) {
+      return new NextResponse("You’ve already submitted a verification request for this task.", {
+        status: 409, // Conflict
+      });
+    }
+
+    // ✅ Create new verification request
     await prisma.verificationRequest.create({
       data: {
         userId: user.id,
-        activityId, // ✅ Use `activityId`
+        activityId,
         status: "waiting",
       },
     });
 
-    // ✅ Notify admin via email
+    // ✅ Notify admin
     await sendNotificationEmail(
       "support@employ-net.com",
       "New Verification Request",

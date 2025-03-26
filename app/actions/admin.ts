@@ -772,6 +772,11 @@ export async function getVerificationRequests() {
           email: true,
         },
       },
+      activity: {
+        select: {
+          title: true
+        }
+      }
     },
   });
 
@@ -782,6 +787,7 @@ export async function getVerificationRequests() {
     userEmail: req.user?.email || "N/A", // ✅ Ensure email is properly accessed
     status: req.status!,
     verificationUrl: req.verificationUrl,
+    activityTitle: req.activity?.title || "N/A"
   }));
 }
 

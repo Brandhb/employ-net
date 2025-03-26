@@ -226,6 +226,7 @@ model VerificationRequest {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   activity        Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, activityId]) // ✅ prevents duplicate requests
   @@index([activityId], map: "idx_verification_requests_activity")
   @@index([userId], map: "idx_verification_requests_user")
   @@map("verification_requests")

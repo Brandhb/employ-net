@@ -49,14 +49,18 @@ export default function ActivitiesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
-  const [completedActivities, setCompletedActivities] = useState<Activity[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
+    []
+  );
   const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("active");
-  const [activeNavigationId, setActiveNavigationId] = useState<string | null>(null);
+  const [activeNavigationId, setActiveNavigationId] = useState<string | null>(
+    null
+  );
   const [isPending, startTransition] = useTransition();
 
   // Fetch Initial Activities from API
@@ -88,23 +92,24 @@ export default function ActivitiesPage() {
     setIsRefreshing(false);
   };
 
- // Handle Activity Click with Optimistic UI update
- const handleActivityClick = (activity: Activity) => {
-  if (activity.type === "verification") {
-    setSelectedTask(activity);
-    setIsDialogOpen(true);
-  } else {
-    // Immediately mark the clicked card as loading
-    setActiveNavigationId(activity.id);
-    startTransition(() => {
-      // Optionally prefetch the route before navigation
-      router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
-    });
-  }
-};
+  // Handle Activity Click with Optimistic UI update
+  const handleActivityClick = (activity: Activity) => {
+    if (activity.type === "verification") {
+      setSelectedTask(activity);
+      setIsDialogOpen(true);
+    } else {
+      // Immediately mark the clicked card as loading
+      setActiveNavigationId(activity.id);
+      startTransition(() => {
+        // Optionally prefetch the route before navigation
+        router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
+      });
+    }
+  };
 
   const handleRequestVerification = async () => {
     if (!selectedTask) return;
+
     try {
       const response = await fetch("/api/users/verification-request", {
         method: "POST",
@@ -112,7 +117,22 @@ export default function ActivitiesPage() {
         body: JSON.stringify({ activityId: selectedTask.id }),
       });
 
-      if (!response.ok) throw new Error("Failed to request verification");
+      if (response.status === 409) {
+        // 🛑 Duplicate request
+        toast({
+          title: "Request Already Exists",
+          description:
+            "You’ve already submitted a verification request for this task.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to request verification");
+      }
+
+      // ✅ Success
       toast({
         title: "Request Sent",
         description: "Admin will review and send you the verification link.",
@@ -120,7 +140,7 @@ export default function ActivitiesPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Could not send verification request",
+        description: "Could not send verification request.",
         variant: "destructive",
       });
     } finally {

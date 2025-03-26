@@ -31,6 +31,7 @@ interface VerificationRequest {
   userEmail: string;
   status: string;
   verificationUrl: string | null;
+  activityTitle: string;
 }
 
 export default function VerificationRequestsPage() {
@@ -165,138 +166,116 @@ export default function VerificationRequestsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Page Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Verification Requests</h2>
-      </div>
-  
-      {/* Card Container */}
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle className="text-lg font-medium">Pending Verifications</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted">
-                  <TableHead className="w-1/4">User</TableHead>
-                  <TableHead className="w-1/5 text-center">Status</TableHead>
-                  <TableHead className="w-1/3 text-center">Verification URL</TableHead>
-                  <TableHead className="w-1/5 text-center">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i} className="animate-pulse">
-                      <TableCell><Skeleton className="h-6 w-40" /></TableCell>
-                      <TableCell className="text-center">
-                        <Skeleton className="h-6 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-6 w-60" />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Skeleton className="h-10 w-32" />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : requests.length > 0 ? (
-                  requests.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>{request.userEmail}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={
-                            request.status === "ready"
-                              ? "default"
-                              : request.status === "waiting"
-                              ? "secondary"
-                              : "outline"
-                          }
-                          className="text-xs px-2 py-1 rounded-full"
-                        >
-                          {request.status.charAt(0).toUpperCase() +
-                            request.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {request.status === "ready" ? (
-                          <a
-                            href={request.verificationUrl!}
-                            target="_blank"
-                            className="text-blue-500 hover:underline"
-                          >
-                            Open Link
-                          </a>
-                        ) : request.status === "waiting" ? (
-                          <Input
-                            type="text"
-                            placeholder="Paste verification URL"
-                            className="w-full sm:w-60"
-                            value={request.verificationUrl || ""}
-                            onChange={(e) => {
-                              setRequests((prev) =>
-                                prev.map((r) =>
-                                  r.id === request.id
-                                    ? { ...r, verificationUrl: e.target.value }
-                                    : r
-                                )
-                              );
-                            }}
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">✅ Completed</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {request.status === "waiting" ? (
-                          <Button
-                            onClick={() =>
-                              handleUpdate(request.id, request.verificationUrl || "")
-                            }
-                            disabled={updating === request.id || !request.verificationUrl}
-                            className="w-full sm:w-auto"
-                          >
-                            {updating === request.id ? (
-                              <Loader2 className="animate-spin h-5 w-5" />
-                            ) : (
-                              "Approve"
-                            )}
-                          </Button>
-                        ) : request.status === "ready" ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => handleMarkAsCompleted(request.id)}
-                            disabled={updating === request.id}
-                            className="w-full sm:w-auto"
-                          >
-                            {updating === request.id ? (
-                              <Loader2 className="animate-spin h-5 w-5" />
-                            ) : (
-                              "Mark as Completed"
-                            )}
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))
+    <Table>
+  <TableHeader>
+    <TableRow className="bg-muted">
+      <TableHead className="w-1/5">User</TableHead>
+      <TableHead className="w-1/5 text-center">Activity</TableHead>
+      <TableHead className="w-1/6 text-center">Status</TableHead>
+      <TableHead className="w-1/3 text-center">Verification URL</TableHead>
+      <TableHead className="w-1/6 text-center">Action</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {loading ? (
+      Array.from({ length: 5 }).map((_, i) => (
+        <TableRow key={i} className="animate-pulse">
+          <TableCell><Skeleton className="h-6 w-40" /></TableCell>
+          <TableCell className="text-center"><Skeleton className="h-6 w-32" /></TableCell>
+          <TableCell className="text-center"><Skeleton className="h-6 w-20" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-60" /></TableCell>
+          <TableCell className="text-center"><Skeleton className="h-10 w-32" /></TableCell>
+        </TableRow>
+      ))
+    ) : requests.length > 0 ? (
+      requests.map((request) => (
+        <TableRow key={request.id}>
+          <TableCell>{request.userEmail}</TableCell>
+          <TableCell className="text-center">{request.activityTitle || "N/A"}</TableCell>
+          <TableCell className="text-center">
+            <Badge
+              variant={
+                request.status === "ready"
+                  ? "default"
+                  : request.status === "waiting"
+                  ? "secondary"
+                  : "outline"
+              }
+              className="text-xs px-2 py-1 rounded-full"
+            >
+              {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+            </Badge>
+          </TableCell>
+          <TableCell className="text-center">
+            {request.status === "ready" ? (
+              <a
+                href={request.verificationUrl!}
+                target="_blank"
+                className="text-blue-500 hover:underline"
+              >
+                Open Link
+              </a>
+            ) : request.status === "waiting" ? (
+              <Input
+                type="text"
+                placeholder="Paste verification URL"
+                className="w-full sm:w-60"
+                value={request.verificationUrl || ""}
+                onChange={(e) => {
+                  setRequests((prev) =>
+                    prev.map((r) =>
+                      r.id === request.id
+                        ? { ...r, verificationUrl: e.target.value }
+                        : r
+                    )
+                  );
+                }}
+              />
+            ) : (
+              <span className="text-muted-foreground">✅ Completed</span>
+            )}
+          </TableCell>
+          <TableCell className="text-center">
+            {request.status === "waiting" ? (
+              <Button
+                onClick={() =>
+                  handleUpdate(request.id, request.verificationUrl || "")
+                }
+                disabled={updating === request.id || !request.verificationUrl}
+                className="w-full sm:w-auto"
+              >
+                {updating === request.id ? (
+                  <Loader2 className="animate-spin h-5 w-5" />
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-4">
-                      🛑 No pending verification requests.
-                    </TableCell>
-                  </TableRow>
+                  "Approve"
                 )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+              </Button>
+            ) : request.status === "ready" ? (
+              <Button
+                variant="outline"
+                onClick={() => handleMarkAsCompleted(request.id)}
+                disabled={updating === request.id}
+                className="w-full sm:w-auto"
+              >
+                {updating === request.id ? (
+                  <Loader2 className="animate-spin h-5 w-5" />
+                ) : (
+                  "Mark as Completed"
+                )}
+              </Button>
+            ) : null}
+          </TableCell>
+        </TableRow>
+      ))
+    ) : (
+      <TableRow>
+        <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
+          🛑 No pending verification requests.
+        </TableCell>
+      </TableRow>
+    )}
+  </TableBody>
+</Table>
+
   );
-  
-  
 }
