@@ -17,6 +17,7 @@ import { redis } from "@/lib/redis";
 import * as Sentry from "@sentry/nextjs";
 import { sendNotificationEmail } from "@/lib/email";
 import { verificationTaskEmailTemplate } from "@/lib/emails/templates/verificationTaskReady";
+import { isAdmin } from "./isAdmin";
 
 // ✅ Ensure User is an Admin
 export async function requireAdminAuth(): Promise<string> {
@@ -797,35 +798,76 @@ export async function markVerificationCompleted(requestId: string) {
   }
 
   try {
-    // ✅ Update the verification request status to "completed"
-    const updatedRequest = await prisma.verificationRequest.update({
+    // ✅ Get the verification request along with related user & activity
+    const request = await prisma.verificationRequest.findUnique({
       where: { id: requestId },
-      data: { status: "completed" },
-      include: { user: true, activity: true}, // Ensure we have user data
-    });
-  
-    // ✅ Add activity points to the user without changing the general activity to complete
-    const updatedUser = await prisma.user.update({
-      where: { id: updatedRequest.user.id },
-      data: {
-        points_balance: { increment: updatedRequest.activity?.points },
+      include: {
+        user: true,
+        activity: true,
       },
-    })
+    });
 
-    // ✅ Find the related activity and update its status
-   {/*
-    await prisma.activity.updateMany({
-      where: {
-        userId: updatedRequest.userId, // Update activities for this user
-        type: "verification", // Only update verification activities
-      },
-      data: { status: "completed" },
-    });
-    */} 
+    if (!request || !request.user || !request.activity) {
+      throw new Error("Request, user, or activity not found.");
+    }
+
+    const { user, activity } = request;
+
+    const userRole = (await isAdmin()) ? "admin" : "user";
+
+    // ✅ Perform all DB operations in a single transaction
+    await prisma.$transaction([
+      // 1. Update the verification request status to "completed"
+      prisma.verificationRequest.update({
+        where: { id: requestId },
+        data: { status: "completed" },
+      }),
+
+      // 2. Create activity completion record
+      prisma.activity_completions.create({
+        data: {
+          user_id: user.id,
+          activity_id: activity.id,
+          completed_at: new Date(),
+        },
+      }),
+
+      // 3. Update user points
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          points_balance: { increment: activity.points },
+        },
+      }),
+
+      // 4. Create an activity log entry
+      prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          activityId: activity.id,
+          action: "completed",
+          metadata: {
+            points: activity.points,
+            type: activity.type,
+          },
+        },
+      }),
+
+      // 5. Notify the user
+      prisma.notification.create({
+        data: {
+          userId: user.id,
+          title: "Activity Completed",
+          message: `🎉 You earned ${activity.points} points for completing "${activity.title}"!`,
+          type: "success",
+          userRole,
+        },
+      }),
+    ]);
 
     return { success: true };
   } catch (error) {
     console.error("Error marking verification as completed:", error);
-    throw new Error("Failed to update request and activity");
+    throw new Error("Failed to complete verification task");
   }
 }
