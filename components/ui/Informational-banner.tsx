@@ -11,109 +11,116 @@ import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime"
 
 export const InformationalBanner = () => {
   const { user } = useUser();
-  const { toast } = useToast();
-  const [verificationStep, setVerificationStep] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+const { toast } = useToast();
+const [verificationStep, setVerificationStep] = useState<number | null>(null);
+const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user?.id) return;
+useEffect(() => {
+  if (!user?.id) return;
 
-    // ✅ Fetch verification status from API
-    const fetchVerificationStep = async () => {
-      try {
-        const response = await fetch("/api/users/new-verification");
-        const data = await response.json();
-        setVerificationStep(data.verificationStep);
-      } catch (error) {
-        console.error("❌ Error fetching verification status:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // ✅ Fetch initial verification step
+  const fetchVerificationStep = async () => {
+    try {
+      const response = await fetch("/api/users/new-verification");
+      const data = await response.json();
+      setVerificationStep(data.verificationStep);
+    } catch (error) {
+      console.error("❌ Error fetching verification status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchVerificationStep();
+  fetchVerificationStep();
 
-    console.log("🔄 Subscribing to Realtime Updates...");
+  console.log("🔄 Subscribing to Realtime Updates...");
 
-    let unsubscribe: (() => void) | null = null;
+  let unsubscribe: (() => void) | null = null;
 
-    const subscribe = async () => {
-      unsubscribe = await listenForTableChanges(
-        "users",
-        "employClerkUserId",
-        user.id,
-        async (payload) => {
-          console.log("🔄 Realtime Update Triggered:", payload);
+  const subscribe = async () => {
+    unsubscribe = await listenForTableChanges(
+      "users",
+      "employClerkUserId",
+      user.id,
+      async (payload) => {
+        console.log("🔄 Realtime Update Triggered:", payload);
 
-          if (payload.new?.verificationStep !== undefined) {
-            console.log("✅ User's verification updated:", payload.new.verificationStep);
-            setVerificationStep(payload.new.verificationStep);
+        const newStep = payload.new?.verificationStep;
+        const oldStep = payload.old?.verificationStep;
 
-            // ✅ Update Redis via API
-            await fetch("/api/users/update-verification-cache", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                userId: user.id,
-                verificationStep: payload.new.verificationStep,
-              }),
+        // ✅ Only respond if verificationStep actually changed
+        if (newStep !== undefined && newStep !== oldStep) {
+          console.log("✅ User's verification updated:", newStep);
+          setVerificationStep(newStep);
+
+          // ✅ Update Redis cache
+          await fetch("/api/users/update-verification-cache", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: user.id,
+              verificationStep: newStep,
+            }),
+          });
+
+          // ✅ Show reset warning
+          if (newStep === 0) {
+            toast({
+              title: "⚠️ Verification Needed",
+              description: "Your identity verification has been reset. Please verify again!",
+              variant: "destructive",
+            });
+          }
+
+          // ✅ Show verified toast + confetti
+          if (newStep === 1) {
+            toast({
+              title: "✅ Verified",
+              description: "Your identity verification has been successfully completed!",
             });
 
-            // ✅ Show warning toast if verification resets to 0
-            if (payload.new.verificationStep === 0) {
-              toast({
-                title: "⚠️ Verification Needed",
-                description: "Your identity verification has been reset. Please verify again!",
-                variant: "destructive",
+            const end = Date.now() + 3 * 1000;
+            const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
+
+            const frame = () => {
+              if (Date.now() > end) return;
+
+              confetti({
+                particleCount: 3,
+                angle: 60,
+                spread: 55,
+                startVelocity: 60,
+                origin: { x: 0, y: 0.5 },
+                colors,
               });
-            }
 
-            // ✅ 🎉 Confetti Effect for Verification Success
-            if (payload.new.verificationStep === 1) {
-              toast({
-                title: "✅ Verified",
-                description: "Your identity verification has been successfully completed!",
+              confetti({
+                particleCount: 3,
+                angle: 120,
+                spread: 55,
+                startVelocity: 60,
+                origin: { x: 1, y: 0.5 },
+                colors,
               });
 
-              const end = Date.now() + 3 * 1000;
-              const colors = ["#a786ff", "#fd8bbc", "#eca184", "#f8deb1"];
+              requestAnimationFrame(frame);
+            };
 
-              const frame = () => {
-                if (Date.now() > end) return;
-                confetti({
-                  particleCount: 3,
-                  angle: 60,
-                  spread: 55,
-                  startVelocity: 60,
-                  origin: { x: 0, y: 0.5 },
-                  colors: colors,
-                });
-                confetti({
-                  particleCount: 3,
-                  angle: 120,
-                  spread: 55,
-                  startVelocity: 60,
-                  origin: { x: 1, y: 0.5 },
-                  colors: colors,
-                });
-
-                requestAnimationFrame(frame);
-              };
-
-              frame(); // 🎉 Trigger confetti
-            }
+            frame(); // 🎉 Trigger confetti
           }
         }
-      );
-    };
+      }
+    );
+  };
 
-    subscribe();
+  subscribe();
 
-    return () => {
-      console.log("🛑 Unsubscribing from Supabase Realtime...");
-      if (unsubscribe) unsubscribe();
-    };
-  }, [user?.id, toast]); // ✅ Include `toast` safely
+  return () => {
+    console.log("🛑 Unsubscribing from Supabase Realtime...");
+    if (unsubscribe) unsubscribe();
+  };
+}, [user?.id, toast]);
+
   
 
   // ✅ If still loading or already verified, do not show the banner

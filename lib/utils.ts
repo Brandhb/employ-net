@@ -51,6 +51,3 @@ export function parseInstructions(instructions: unknown): { step: number; text: 
 
   return []; // Return an empty array if parsing fails or if the format is invalid
 }
-
-
-

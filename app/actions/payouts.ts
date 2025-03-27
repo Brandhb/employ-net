@@ -122,3 +122,9 @@ export async function requestPayout(userId: string, amount: number) {
   return payout;
 }
 
+export const getMinAmountOfPayout = async () => {
+  return parseFloat(process.env.MIN_PAYOUT_AMOUNT || "150");
+};
+
+
+

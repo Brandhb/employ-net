@@ -79,7 +79,7 @@ export function BankAccountForm({ existingAccount, onSuccess }: BankAccountFormP
   
 
   async function onSubmit(values: BankAccountFormData) {
-    debugger;
+    //debugger;
     if (!userId) return;
 
     setIsLoading(true);

@@ -17,33 +17,50 @@ import { useToast } from "@/hooks/use-toast";
 import { requestPayout } from "@/app/actions/payouts";
 import { getBankAccount } from "@/app/actions/bank-account";
 import { BankAccountForm } from "@/components/bank-account-form";
+import { getMinAmountOfPayout } from "@/app/actions/payouts";
+import { Skeleton } from "../ui/skeleton";
 
 interface RequestPayoutButtonProps {
   availableBalance: number;
   className?: string;
 }
 
-export function RequestPayoutButton({ availableBalance, className }: RequestPayoutButtonProps) {
+export function RequestPayoutButton({
+  availableBalance,
+  className,
+}: RequestPayoutButtonProps) {
   const { userId } = useAuth();
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
+  const [minAmountOfPayout, setMinAmountOfPayout] = useState<number>(0);
+  const [minAmountLoading, setMinAmountLoading] = useState(true);
+
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [bankAccount, setBankAccount] = useState<any | null>(null);
   const [showBankForm, setShowBankForm] = useState(false);
 
+  // ✅ Fetch min payout once on mount
+  useEffect(() => {
+    const fetchMin = async () => {
+      const min = await getMinAmountOfPayout();
+      setMinAmountOfPayout(min);
+      setMinAmountLoading(false);
+    };
+    fetchMin();
+  }, []);
+
+  // ✅ Fetch bank account when dialog opens
   useEffect(() => {
     if (userId && isOpen) {
       fetchBankAccount();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isOpen]);
 
   const fetchBankAccount = async () => {
     if (!userId) return;
     const account = await getBankAccount(userId);
-    
-    if (account && account.success && account.data) {
+    if (account?.success && account.data) {
       setBankAccount(account.data);
       setShowBankForm(false);
     } else {
@@ -55,7 +72,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
-  
+
     if (!bankAccount) {
       toast({
         title: "Bank Account Missing",
@@ -65,17 +82,21 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
       setShowBankForm(true);
       return;
     }
-  
+
     const payoutAmount = parseFloat(amount);
-    if (isNaN(payoutAmount) || payoutAmount < 10 || payoutAmount > availableBalance) {
+    if (
+      isNaN(payoutAmount) ||
+      payoutAmount < minAmountOfPayout ||
+      payoutAmount > availableBalance
+    ) {
       toast({
         title: "Invalid Amount",
-        description: "Enter a valid amount between $10 and your available balance.",
+        description: `Enter a valid amount between $${minAmountOfPayout} and your available balance.`,
         variant: "destructive",
       });
       return;
     }
-  
+
     setIsLoading(true);
     try {
       await requestPayout(userId, payoutAmount);
@@ -84,15 +105,13 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
         description: "Your payout request has been submitted successfully.",
       });
       setIsOpen(false);
-    } catch (error: unknown) { // Explicitly handling unknown error type
+    } catch (error: unknown) {
       let errorMessage = "Failed to request payout";
-      
       if (error instanceof Error) {
         errorMessage = error.message;
       } else if (typeof error === "string") {
         errorMessage = error;
       }
-  
       toast({
         title: "Error",
         description: errorMessage,
@@ -102,36 +121,42 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
       setIsLoading(false);
     }
   };
-  
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button 
-          className={className} 
-          disabled={availableBalance < 150000}
-          onClick={() => setIsOpen(true)}
-        >
-          Request Payout
-        </Button>
+        {minAmountLoading ? (
+          <Skeleton className={`h-10 w-full ${className}`} />
+        ) : (
+          <Button
+            className={className}
+            disabled={availableBalance < minAmountOfPayout}
+            onClick={() => setIsOpen(true)}
+          >
+            Request Payout
+          </Button>
+        )}
       </DialogTrigger>
+
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Request Payout</DialogTitle>
           <DialogDescription>
             {showBankForm
               ? "Please add your bank account details before requesting a payout."
-              : "Enter the amount you want to withdraw. Minimum $10.00"}
+              : `Enter the amount you want to withdraw. Minimum $${minAmountOfPayout.toFixed(
+                  2
+                )}.`}
           </DialogDescription>
         </DialogHeader>
 
         {showBankForm ? (
-          <BankAccountForm 
-          existingAccount={bankAccount}
+          <BankAccountForm
+            existingAccount={bankAccount}
             onSuccess={() => {
               setShowBankForm(false);
               fetchBankAccount();
-            }} 
+            }}
           />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -141,11 +166,10 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
                 id="amount"
                 type="number"
                 step="0.01"
-                min="10"
                 max={availableBalance}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount"
+                placeholder={`Min $${minAmountOfPayout.toFixed(2)}`}
               />
               <p className="text-sm text-muted-foreground">
                 Available balance: ${availableBalance.toFixed(2)}
@@ -157,7 +181,7 @@ export function RequestPayoutButton({ availableBalance, className }: RequestPayo
               <div className="rounded-lg border p-3 space-y-1">
                 <p className="font-medium">{bankAccount?.bankName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Account ending in ****{bankAccount?.accountNumber.slice(-4)}
+                  Account ending in ****{bankAccount?.accountNumber?.slice(-4)}
                 </p>
               </div>
               <Button
