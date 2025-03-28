@@ -8,6 +8,10 @@ import {
   adminRateLimit,
 } from "@/lib/rate-limit";
 
+// In-memory cache (scoped to serverless runtime instance)
+const memoryCache = new Map<string, { value: string | null; expiresAt: number }>();
+const CACHE_TTL = 60 * 1000; // 60 seconds
+
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
 const isActivitiesRoute = createRouteMatcher(["/dashboard/activities(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
@@ -21,7 +25,7 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId, redirectToSignIn } = await auth();
   const isAuthenticated = Boolean(userId);
 
-  // ✅ Apply Rate Limiting
+  // ✅ Apply Rate Limiting (based on route type)
   let rateLimiter = generalRateLimit;
   if (isApiRoute(req)) rateLimiter = apiRateLimit;
   else if (isAdminRoute(req)) rateLimiter = adminRateLimit;
@@ -35,34 +39,51 @@ export default clerkMiddleware(async (auth, req) => {
     );
   }
 
-  console.log(`✅ Rate limit check passed (${remaining} requests left)`);
+  console.log(`✅ Rate limit OK (${remaining} requests left)`);
 
-  // ✅ Handle Webhooks
+  // ✅ Allow webhooks without checks
   if (isWebhookRoute(req)) {
     return NextResponse.next();
   }
 
-  // ✅ Block access to `/dashboard/activities/*` for unverified users
+  // ✅ Verification gate for /dashboard/activities/*
   if (isActivitiesRoute(req)) {
     if (!isAuthenticated) {
-      console.warn(`❌ User - ${userId} not authenticated, redirecting...`);
+      console.warn(`❌ Unauthenticated user, redirecting...`);
       return redirectToSignIn();
     }
 
     const cacheKey = `user:verificationStep:${userId}`;
-    let verificationStep = await redis.get(cacheKey);
+    const now = Date.now();
+    let verificationStep: string | null = null;
+
+    // 🔁 Check in-memory cache first
+    const cached = memoryCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      verificationStep = cached.value;
+    } else {
+      try {
+        verificationStep = await redis.get(cacheKey);
+        memoryCache.set(cacheKey, {
+          value: verificationStep,
+          expiresAt: now + CACHE_TTL,
+        });
+        console.log(`🧠 Redis GET: ${cacheKey} → ${verificationStep}`);
+      } catch (err) {
+        console.error("❌ Redis error:", err);
+        return NextResponse.next(); // fail-open on Redis issues
+      }
+    }
 
     if (verificationStep === null || Number(verificationStep) === 0) {
-      console.warn(
-        `❌ User - ${userId} is unverified! Redirecting to /dashboard...`
-      );
+      console.warn(`❌ User - ${userId} is unverified. Redirecting.`);
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    console.log(`✅ User - ${userId} is verified. Access granted.`);
+    console.log(`✅ User - ${userId} verified.`);
   }
 
-  // ✅ Handle Admin Route Protection
+  // ✅ Protect admin routes
   if (isAdminRoute(req)) {
     if (!userId) return redirectToSignIn();
 
@@ -76,7 +97,7 @@ export default clerkMiddleware(async (auth, req) => {
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
     } catch (error) {
-      console.error("❌ Error fetching user metadata:", error);
+      console.error("❌ Clerk metadata fetch error:", error);
       return redirectToSignIn();
     }
   }
