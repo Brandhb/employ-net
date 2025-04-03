@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { prisma } from '@/lib/prisma';
-import { useAuth } from '@clerk/nextjs';
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { fetchAnalyticsData } from "@/app/actions/analytics"; // ✅ Use server action
 
 interface AnalyticsData {
   totalRevenue: number;
@@ -19,48 +19,21 @@ export function useAnalytics() {
   const { userId } = useAuth();
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const getAnalytics = async () => {
+      if (!userId) return;
+
       try {
-        if (!userId) return;
-
-        const analyticsData = await prisma.$transaction(async (prisma) => {
-          const [
-            adInteractions,
-            activities,
-            completedActivities,
-            totalEngagement,
-          ] = await Promise.all([
-            prisma.adInteraction.count(),
-            prisma.activity.count(),
-            prisma.activity.count({
-              where: { status: 'completed' },
-            }),
-            prisma.adInteraction.aggregate({
-              _avg: {
-                duration: true,
-              },
-            }),
-          ]);
-
-          return {
-            totalRevenue: 0, // Calculate based on your revenue model
-            adImpressions: adInteractions,
-            adClicks: 0, // Calculate from click interactions
-            completionRate: activities > 0 ? (completedActivities / activities) * 100 : 0,
-            averageEngagement: totalEngagement._avg.duration || 0,
-          };
-        });
-
+        const analyticsData = await fetchAnalyticsData(); // ✅ Call the server function
         setData(analyticsData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch analytics');
+        setError(err instanceof Error ? err.message : "Failed to fetch analytics");
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 60000); // Update every minute
+    getAnalytics();
+    const interval = setInterval(getAnalytics, 60000); // Update every minute
 
     return () => clearInterval(interval);
   }, [userId]);

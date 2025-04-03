@@ -48,19 +48,39 @@ export interface VerificationSession {
   user: User; // Related user
 }
 
+export interface ActivityData {
+  _count: number;
+  id: string;
+  title: string;
+  type: "video" | "survey" | "verification" | "ux_ui_test" | "ai_image_task";
+  status: "active" | "draft";
+  points: number;
+  createdAt: string;
+  completedAt?: Date | null;
+  expiresAt?: string;
+  metadata?: Record<string, any>;
+  userId?: string; // Add userId if necessary
+  is_template?: boolean;
+  description: string;
+  instructions?: { step: number; text: string }[];
+}
+
 export interface Activity {
   id: string; // UUID
   userId: string; // User UUID
   type: string; // Type of activity
   title: string; // Title of the activity
   description?: string; // Optional description
+  testUrl?: string;
   points: number; // Points associated with the activity
   status: string; // Status of the activity
   completedAt?: Date; // Completion timestamp
   createdAt?: Date; // Creation timestamp
   metadata?: Record<string, any>; // Metadata as a key-value store
   user: User; // Related user
+  is_template: boolean;
   logs: ActivityLog[]; // Related activity logs
+  instructions?: { step: number; text: string }[];
 }
 
 export interface ActivityLog {
@@ -124,10 +144,39 @@ export interface PayoutRequest {
   createdAt?: Date; // Creation timestamp
   users: User; // Related user
 }
+export interface UxUiTest {
+  id: string;
+  userId: string;
+  website: string;
+  guidelines: string;
+  videoUrl?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface AiImageTask {
+  id: string;
+  userId: string;
+  prompt: string;
+  errorReport?: string;
+  imageUrl?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface VerificationTask {
+  id: string;
+  userId: string;
+  requestTime: string;
+  approvalTime?: string;
+  taskUrl?: string;
+  status: string;
+  createdAt: string;
+}
 
 export {};
 
-export type Roles = 'admin' | 'moderator'
+export type Roles = "admin" | "moderator";
 
 /*declare global {
   interface ClerkAuthorization {
@@ -139,8 +188,7 @@ export type Roles = 'admin' | 'moderator'
 declare global {
   interface CustomJwtSessionClaims {
     metadata: {
-      role? : Roles
-    }
-   
+      role?: Roles;
+    };
   }
 }

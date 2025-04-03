@@ -1,68 +1,45 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { auth } from '@clerk/nextjs/server';
+export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const { userId: employClerkUserId } = await auth();
+import { NextResponse, NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
 
-  if (!employClerkUserId) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
-
+export async function GET(request: NextRequest) {
   try {
-    // Fetch the internal `userId` using the Clerk's `employClerkUserId`
+    const authUser = await auth();
+    const employClerkUserId = authUser?.userId;
+
+    if (!employClerkUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    console.log("📌 Looking up user with Clerk ID:", employClerkUserId);
+
     const user = await prisma.user.findUnique({
       where: { employClerkUserId },
       select: { id: true },
     });
 
     if (!user) {
-      return new NextResponse('User not found', { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const internalUserId = user.id; // This will be used to query notifications
+    console.log("✅ Internal User ID:", user.id);
 
-    const headers = {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    };
-
-    const stream = new ReadableStream({
-      start(controller) {
-        const interval = setInterval(async () => {
-          console.log('Fetching notifications for userId:', internalUserId);
-
-          try {
-            const notifications = await prisma.notification.findMany({
-              where: {
-                userId: internalUserId, // Use the internal user ID
-                read: false,
-              },
-              orderBy: {
-                createdAt: 'desc',
-              },
-            });
-
-            if (notifications.length > 0) {
-              const data = `data: ${JSON.stringify(notifications[0])}\n\n`;
-              controller.enqueue(new TextEncoder().encode(data));
-            }
-          } catch (error) {
-            console.error('Error fetching notifications:', error);
-            controller.close();
-          }
-        }, 5000);
-
-        return () => {
-          clearInterval(interval);
-        };
+    // Fetch initial notifications
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: user.id,
+        read: false, // Fetch only unread notifications
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
-    return new NextResponse(stream, { headers });
+    return NextResponse.json({ success: true, notifications });
   } catch (error) {
-    console.error('Error processing notifications stream:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error("🚨 Error fetching notifications:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

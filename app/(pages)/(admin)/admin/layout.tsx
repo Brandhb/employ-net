@@ -26,7 +26,7 @@ export default function AdminLayout({
     <NotificationProvider>
       <div className="min-h-screen bg-background">
         <div className="border-b">
-          <div className="flex h-16 items-center px-4">
+          <div className="flex h-16 items-center px-4 bg-neutral-100">
             <AdminNav className="mx-6" />
             <div className="ml-auto flex items-center space-x-4">
               <NotificationBell />

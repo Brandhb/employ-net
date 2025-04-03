@@ -21,7 +21,7 @@ const features = [
 
 export default function FeaturePreview() {
   return (
-    <section className="py-0 px-8 md:px-12 lg:px-20 bg-gradient-to-b from-muted/30 to-muted/50">
+    <section className="py-0 px-8 md:px-12 lg:px-20 bg-gradient-to-b from-muted/60 to-muted/50">
       <div className="max-w-7xl mx-auto">
         <Suspense fallback={<FeatureSkeleton />}>
           <Feature features={features} />

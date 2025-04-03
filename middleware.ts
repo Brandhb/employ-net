@@ -1,55 +1,104 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { clerkClient } from "@clerk/nextjs/server";
+import { redis } from "@/lib/redis"; // ✅ Use Redis to cache verification status
+import {
+  generalRateLimit,
+  apiRateLimit,
+  adminRateLimit,
+} from "@/lib/rate-limit";
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+// In-memory cache (scoped to serverless runtime instance)
+const memoryCache = new Map<string, { value: string | null; expiresAt: number }>();
+const CACHE_TTL = 60 * 1000; // 60 seconds
+
+const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
+const isActivitiesRoute = createRouteMatcher(["/dashboard/activities(.*)"]);
+const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
+const isApiRoute = createRouteMatcher(["/api(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
 
+  const ip = req.ip ?? "unknown";
   const { userId, redirectToSignIn } = await auth();
-  console.log(`🔑 Authenticated user ID: ${userId || "None"}`);
+  const isAuthenticated = Boolean(userId);
 
-  // Allow Webhook Requests But Log if Signature is Missing
+  // ✅ Apply Rate Limiting (based on route type)
+  let rateLimiter = generalRateLimit;
+  if (isApiRoute(req)) rateLimiter = apiRateLimit;
+  else if (isAdminRoute(req)) rateLimiter = adminRateLimit;
+
+  const { success, remaining, reset } = await rateLimiter.limit(ip);
+  if (!success) {
+    console.warn(`⚠️ Rate limit exceeded for ${ip}`);
+    return NextResponse.json(
+      { error: "Too many requests, slow down!" },
+      { status: 429, headers: { "Retry-After": reset.toString() } }
+    );
+  }
+
+  console.log(`✅ Rate limit OK (${remaining} requests left)`);
+
+  // ✅ Allow webhooks without checks
   if (isWebhookRoute(req)) {
-    console.log("📩 Incoming webhook request...");
-
-    // Ensure Webhook Secret Exists
-    if (!process.env.CLERK_WEBHOOK_SECRET) {
-      console.warn("❌ Missing Clerk Webhook Secret");
-      return new NextResponse("Error: Missing Webhook Secret", { status: 500 });
-    }
-
-    console.log("✅ Clerk Webhook Secret is set");
     return NextResponse.next();
   }
 
-  // Protect /dashboard routes
-  if (isProtectedRoute(req)) {
-    console.log("🔒 Accessing protected route:", req.nextUrl.pathname);
-
-    if (!userId) {
-      console.warn("❌ User is not authenticated, redirecting to sign-in");
+  // ✅ Verification gate for /dashboard/activities/*
+  if (isActivitiesRoute(req)) {
+    if (!isAuthenticated) {
+      console.warn(`❌ Unauthenticated user, redirecting...`);
       return redirectToSignIn();
     }
 
+    const cacheKey = `user:verificationStep:${userId}`;
+    const now = Date.now();
+    let verificationStep: string | null = null;
+
+    // 🔁 Check in-memory cache first
+    const cached = memoryCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      verificationStep = cached.value;
+    } else {
+      try {
+        verificationStep = await redis.get(cacheKey);
+        memoryCache.set(cacheKey, {
+          value: verificationStep,
+          expiresAt: now + CACHE_TTL,
+        });
+        console.log(`🧠 Redis GET: ${cacheKey} → ${verificationStep}`);
+      } catch (err) {
+        console.error("❌ Redis error:", err);
+        return NextResponse.next(); // fail-open on Redis issues
+      }
+    }
+
+    if (verificationStep === null || Number(verificationStep) === 0) {
+      console.warn(`❌ User - ${userId} is unverified. Redirecting.`);
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    console.log(`✅ User - ${userId} verified.`);
+  }
+
+  // ✅ Protect admin routes
+  if (isAdminRoute(req)) {
+    if (!userId) return redirectToSignIn();
+
     try {
-      console.log(`📡 Fetching user metadata for user: ${userId}`);
-      const client = await clerkClient();
-      const user = await client.users.getUser(userId);
-      const userRole = user?.publicMetadata?.role;
-      console.log(`🎭 User role: ${userRole || "None"}`);
+      const { users } = await clerkClient();
+      const user = await users.getUser(userId);
+      const userRole = user?.publicMetadata?.role || "user";
 
       if (userRole !== "admin") {
-        console.warn("❌ User is not an admin, redirecting to /unauthorized");
+        console.warn("❌ Not an admin, redirecting...");
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
-
-      console.log("✅ User is authorized to access this page");
     } catch (error) {
-      console.error("❌ Error fetching user metadata:", error);
-      return NextResponse.redirect(new URL("/sign-in", req.url));
+      console.error("❌ Clerk metadata fetch error:", error);
+      return redirectToSignIn();
     }
   }
 
@@ -58,7 +107,7 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    "/((?!api/webhooks/clerk|_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!api/webhooks/clerk|_next|.*\\.(?:css|js|png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|otf|eot|mp4|avi|mov|csv|txt|json|xml|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };

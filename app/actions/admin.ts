@@ -1,43 +1,26 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Activity, ActivityData } from "@/types";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
+import {
+  AdminAnalytics,
+  AdminNotificationPreferences,
+  AdminUser,
+  CreateActivityData,
+  CreateActivityResponse,
+  NotificationPreferences,
+} from "../lib/types/admin";
+import { redis } from "@/lib/redis";
+import * as Sentry from "@sentry/nextjs";
+import { sendNotificationEmail } from "@/lib/email";
+import { verificationTaskEmailTemplate } from "@/lib/emails/templates/verificationTaskReady";
+import { isAdmin } from "./isAdmin";
 
-interface NotificationPreferences {
-  dailySummary: boolean;
-  urgentAlerts: boolean;
-}
-
-interface AdminNotificationPreferences {
-  payoutNotifications: boolean;
-  verificationNotifications: boolean;
-  systemAlerts: boolean;
-}
-
-export interface AdminUser {
-  id: string;
-  name: string | null;
-  email: string;
-  status: string;
-  points: number;
-  joinedAt: Date;
-  verificationStatus: string;
-}
-
-export interface AdminPayout {
-  id: string;
-  amount: number;
-  status: string;
-  user: {
-    fullName: string | null;
-    email: string;
-    paypalEmail: string | null;
-  };
-  createdAt: Date;
-}
-
-async function requireAdminAuth() {
+// ✅ Ensure User is an Admin
+export async function requireAdminAuth(): Promise<string> {
   const { userId } = await auth();
   if (!userId) throw new Error("No User");
 
@@ -51,10 +34,32 @@ async function requireAdminAuth() {
   return userId;
 }
 
-// Add these functions to the existing file
-export async function getAdminUsers(): Promise<AdminUser[]> {
-  await requireAdminAuth(); // 👈 Replacing redundant checks
+// ✅ Ensure User is Authenticated
+export async function requireAuthUser(): Promise<string> {
+  const { userId } = await auth();
+  if (!userId) {
+    throw new Error("Unauthorized: User not found");
+  }
+  return userId;
+}
 
+const adminCache = new Map<string, any>();
+const adminAnalyticsCache = new Map<string, any>();
+
+const ADMIN_USERS_CACHE_KEY = "adminUsers";
+const CACHE_EXPIRATION = 300; // 5 minutes
+
+export async function getAdminUsers() {
+  await requireAdminAuth();
+
+  // ✅ Check Redis cache
+  const cachedUsers = await redis.get(ADMIN_USERS_CACHE_KEY);
+  if (cachedUsers) {
+    console.log("✅ Returning cached admin users");
+    return cachedUsers;
+  }
+
+  // ✅ Fetch from DB if not in cache
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -64,35 +69,45 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
       points_balance: true,
       createdAt: true,
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
-  return users.map((user) => ({
+  const formattedUsers = users.map((user) => ({
     id: user.id,
     name: user.name,
     email: user.email || "",
     status: user.verification_status === "verified" ? "active" : "inactive",
     points: user.points_balance || 0,
-    joinedAt: user.createdAt || "",
+    joinedAt: user.createdAt,
     verificationStatus: user.verification_status || "",
   }));
+
+  await redis.set(ADMIN_USERS_CACHE_KEY, formattedUsers, {
+    ex: CACHE_EXPIRATION,
+  });
+
+  return formattedUsers;
 }
 
-export interface AdminUser {
-  id: string;
-  name: string | null;
-  email: string;
-  status: string;
-  points: number;
-  joinedAt: Date;
-  verificationStatus: string;
+// ✅ Function to clear cache when updating users
+export async function clearAdminUsersCache() {
+  await redis.del(ADMIN_USERS_CACHE_KEY);
 }
+
+const DASHBOARD_CACHE_KEY = "adminDashboardStats";
+const DASHBOARD_CACHE_EXPIRATION = 300; // 5 minutes
 
 export async function getAdminDashboardStatsBothWebsites() {
-  await requireAdminAuth(); // 👈 Replacing redundant checks
+  await requireAdminAuth();
 
+  // ✅ Check cache first
+  const cachedStats = await redis.get(DASHBOARD_CACHE_KEY);
+  if (cachedStats) {
+    console.log("✅ Returning cached dashboard stats");
+    return cachedStats;
+  }
+
+  // ✅ Fetch from DB
   const [
     totalUsers,
     activeActivities,
@@ -103,30 +118,18 @@ export async function getAdminDashboardStatsBothWebsites() {
     activityCompletionRateRaw,
     revenueGrowthRaw,
   ] = await prisma.$transaction([
-    // Total Users
     prisma.user.count(),
+    prisma.activity.count({ where: { status: "active" } }),
+    prisma.payout.count({ where: { status: "pending" } }),
 
-    // Active Activities
-    prisma.activity.count({
-      where: { status: "active" },
-    }),
-
-    // Pending Payouts
-    prisma.payout.count({
-      where: { status: "pending" },
-    }),
-
-    // Issues (activities with error status or failed payouts)
     prisma.$queryRaw<{ count: number }[]>`
-      SELECT COUNT(*) as count
-      FROM (
+      SELECT COUNT(*) as count FROM (
         SELECT id FROM activities WHERE status = 'error'
         UNION
         SELECT id FROM payouts WHERE status = 'rejected'
       ) as issues
     `,
 
-    // Recent Users
     prisma.user.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
@@ -139,44 +142,43 @@ export async function getAdminDashboardStatsBothWebsites() {
       },
     }),
 
-    // User Growth (compared to last month)
     prisma.$queryRaw<{ growth: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
           ((COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 month')::DECIMAL / 
             NULLIF(COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '2 month' 
-              AND created_at < NOW() - INTERVAL '1 month'), 0)) - 1) * 100,
+              AND created_at < NOW() - INTERVAL '1 month'), 0)) - 1) * 100, 
           1
-        ) as growth
+        ), 0
+      ) as growth
       FROM users
     `,
 
-    // Activity Completion Rate
     prisma.$queryRaw<{ rate: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
-          (COUNT(*) FILTER (WHERE status = 'completed')::DECIMAL / 
-            NULLIF(COUNT(*), 0)) * 100,
+          (COUNT(*) FILTER (WHERE status = 'completed')::DECIMAL / NULLIF(COUNT(*), 0)) * 100, 
           1
-        ) as rate
+        ), 0
+      ) as rate
       FROM activities
     `,
 
-    // Revenue Growth (based on completed payouts)
     prisma.$queryRaw<{ growth: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
           ((SUM(amount) FILTER (WHERE created_at >= NOW() - INTERVAL '1 month')::DECIMAL / 
             NULLIF(SUM(amount) FILTER (WHERE created_at >= NOW() - INTERVAL '2 month' 
-              AND created_at < NOW() - INTERVAL '1 month'), 0)) - 1) * 100,
+              AND created_at < NOW() - INTERVAL '1 month'), 0)) - 1) * 100, 
           1
-        ) as growth
+        ), 0
+      ) as growth
       FROM payouts
       WHERE status = 'completed'
     `,
   ]);
 
-  return {
+  const stats = {
     totalUsers,
     activeActivities,
     pendingPayouts,
@@ -186,9 +188,21 @@ export async function getAdminDashboardStatsBothWebsites() {
     activityCompletionRate: Number(activityCompletionRateRaw[0]?.rate || 0),
     revenueGrowth: Number(revenueGrowthRaw[0]?.growth || 0),
   };
+
+  await redis.set(DASHBOARD_CACHE_KEY, stats, {
+    ex: DASHBOARD_CACHE_EXPIRATION,
+  });
+
+  return stats;
 }
 
+// ✅ Cached Single Website Dashboard Stats
 export async function getAdminDashboardStats() {
+  if (adminCache.has("singleAdminDashboardStats")) {
+    console.log("✅ Returning cached single admin dashboard stats");
+    return adminCache.get("singleAdminDashboardStats");
+  }
+
   await requireAdminAuth();
 
   const [
@@ -201,40 +215,25 @@ export async function getAdminDashboardStats() {
     activityCompletionRateRaw,
     revenueGrowthRaw,
   ] = await prisma.$transaction([
-    // ✅ Ensure we count only users with employClerkUserId
-    prisma.user.count({
-      where: { employClerkUserId: { not: null } }
-    }),
-
-    // ✅ Ensure activities belong to employed users
+    prisma.user.count({ where: { employClerkUserId: { not: null } } }),
     prisma.activity.count({
-      where: { 
-        status: "active",
-        user: { employClerkUserId: { not: null } } 
-      },
+      where: { status: "active", user: { employClerkUserId: { not: null } } },
     }),
-
-    // ✅ Ensure payouts belong to employed users
     prisma.payout.count({
-      where: { 
-        status: "pending",
-        user: { employClerkUserId: { not: null } }
-      },
+      where: { status: "pending", user: { employClerkUserId: { not: null } } },
     }),
 
-    // ✅ Fix: Use double quotes in raw SQL for case-sensitive column names
     prisma.$queryRaw<{ count: number }[]>`
       SELECT COUNT(*) as count
       FROM (
         SELECT id FROM activities WHERE status = 'error' 
           AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL)
-        UNION
+        UNION ALL
         SELECT id FROM payouts WHERE status = 'rejected' 
           AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL)
       ) as issues
     `,
 
-    // ✅ Fix: Recent Users (Only those with employClerkUserId)
     prisma.user.findMany({
       where: { employClerkUserId: { not: null } },
       take: 5,
@@ -248,47 +247,47 @@ export async function getAdminDashboardStats() {
       },
     }),
 
-    // ✅ Fix: User Growth (Only employed users)
     prisma.$queryRaw<{ growth: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
           ((COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 month' AND "employClerkUserId" IS NOT NULL)::DECIMAL / 
             NULLIF(COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '2 month' 
-              AND created_at < NOW() - INTERVAL '1 month' AND "employClerkUserId" IS NOT NULL), 0)) - 1) * 100,
+              AND created_at < NOW() - INTERVAL '1 month' AND "employClerkUserId" IS NOT NULL), 0)) - 1) * 100, 
           1
-        ) as growth
+        ), 0
+      ) as growth
       FROM users
     `,
 
-    // ✅ Fix: Activity Completion Rate (Only for employed users)
     prisma.$queryRaw<{ rate: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
           (COUNT(*) FILTER (WHERE status = 'completed' 
-          AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL))::DECIMAL / 
-            NULLIF(COUNT(*), 0)) * 100,
+            AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL))::DECIMAL / 
+            NULLIF(COUNT(*), 0)) * 100, 
           1
-        ) as rate
+        ), 0
+      ) as rate
       FROM activities
     `,
 
-    // ✅ Fix: Revenue Growth (Only for employed users)
     prisma.$queryRaw<{ growth: number }[]>`
-      SELECT 
+      SELECT COALESCE(
         ROUND(
           ((SUM(amount) FILTER (WHERE created_at >= NOW() - INTERVAL '1 month' 
             AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL))::DECIMAL / 
             NULLIF(SUM(amount) FILTER (WHERE created_at >= NOW() - INTERVAL '2 month' 
               AND created_at < NOW() - INTERVAL '1 month' 
-              AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL)), 0)) - 1) * 100,
+              AND user_id IN (SELECT id FROM users WHERE "employClerkUserId" IS NOT NULL)), 0)) - 1) * 100, 
           1
-        ) as growth
+        ), 0
+      ) as growth
       FROM payouts
       WHERE status = 'completed'
     `,
   ]);
 
-  return {
+  const stats = {
     totalUsers,
     activeActivities,
     pendingPayouts,
@@ -298,74 +297,48 @@ export async function getAdminDashboardStats() {
     activityCompletionRate: Number(activityCompletionRateRaw[0]?.rate || 0),
     revenueGrowth: Number(revenueGrowthRaw[0]?.growth || 0),
   };
+
+  adminCache.set("singleAdminDashboardStats", stats);
+  setTimeout(
+    () => adminCache.delete("singleAdminDashboardStats"),
+    5 * 60 * 1000
+  ); // Cache expires in 5 min
+
+  return stats;
 }
 
-
-export async function getAdminNotifications() {
-  await requireAdminAuth(); // 👈 Replacing redundant checks
-
-  return prisma.notification.findMany({
-    where: {
-      OR: [
-        { type: "payout_request" },
-        { type: "verification_request" },
-        { type: "system_alert" },
-      ],
-      read: false,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  });
-}
-
-export async function getAdminSettings() {
-  const { userId } = await auth();
-  await requireAdminAuth();
-
-  const user = await prisma.user.findUnique({
-    where: { employClerkUserId: userId || "" },
-    select: {
-      id: true,
-      email: true,
-      notificationPreferences: true,
-      adminNotificationPreferences: true,
-    },
-  });
-
-  return {
-    ...user,
-    notificationPreferences: (typeof user?.notificationPreferences === "string"
-      ? JSON.parse(user.notificationPreferences)
-      : user?.notificationPreferences) || {
-        dailySummary: true,
-        urgentAlerts: true,
-      },
-
-    adminNotificationPreferences: (typeof user?.adminNotificationPreferences === "string"
-      ? JSON.parse(user.adminNotificationPreferences)
-      : user?.adminNotificationPreferences) || {
-        payoutNotifications: true,
-        verificationNotifications: true,
-        systemAlerts: true,
-      },
+interface AdminSettings {
+  id: string;
+  email: string;
+  notificationPreferences: {
+    dailySummary: boolean;
+    urgentAlerts: boolean;
+  };
+  adminNotificationPreferences: {
+    payoutNotifications: boolean;
+    verificationNotifications: boolean;
+    systemAlerts: boolean;
   };
 }
 
+// ✅ Cache admin settings to reduce DB load
+const ADMIN_SETTINGS_CACHE_KEY = "adminSettings";
+const ADMIN_SETTINGS_CACHE_EXPIRATION = 600; // 10 minutes
 
-export async function updateAdminSettings(settings: {
-  notificationPreferences?: NotificationPreferences;
-  adminNotificationPreferences?: AdminNotificationPreferences;
-}) {
+export async function getAdminSettings(): Promise<AdminSettings> {
+  await requireAdminAuth();
+
+  // ✅ Check cache first
+  const cachedSettings = await redis.get(ADMIN_SETTINGS_CACHE_KEY);
+  if (cachedSettings) {
+    console.log("✅ Returning cached admin settings");
+    return cachedSettings as AdminSettings;
+  }
   const { userId } = await auth();
-  await requireAdminAuth(); // 👈 Replacing redundant checks
 
-  return prisma.user.update({
+  // ✅ Fetch from DB
+  const user = await prisma.user.findUniqueOrThrow({
     where: { employClerkUserId: userId || "" },
-    data: {
-      notificationPreferences: settings.notificationPreferences as any,
-      adminNotificationPreferences:
-        settings.adminNotificationPreferences as any,
-    },
     select: {
       id: true,
       email: true,
@@ -373,159 +346,211 @@ export async function updateAdminSettings(settings: {
       adminNotificationPreferences: true,
     },
   });
+
+  const settings = {
+    ...user,
+    notificationPreferences: user.notificationPreferences
+      ? user.notificationPreferences
+      : { dailySummary: true, urgentAlerts: true },
+
+    adminNotificationPreferences: user.adminNotificationPreferences
+      ? user.adminNotificationPreferences
+      : {
+          payoutNotifications: true,
+          verificationNotifications: true,
+          systemAlerts: true,
+        },
+  };
+
+  await redis.set(ADMIN_SETTINGS_CACHE_KEY, settings, {
+    ex: ADMIN_SETTINGS_CACHE_EXPIRATION,
+  });
+
+  return settings as AdminSettings;
 }
 
-export interface AdminAnalytics {
-  users: {
-    verificationStatus: string;
-    _count: number;
-    createdAt: Date;
-  }[];
-  activities: {
-    type: string;
-    status: string;
-    _count: number;
-    _sum: {
-      points: number | null;
-    };
-    metadata: {
-      duration?: number;
-      [key: string]: any;
-    } | null;
-  }[];
-  payouts: {
-    status: string;
-    _count: number;
-    _sum: {
-      amount: number | null;
-    };
-    created_at: Date;
-  }[];
+// ✅ Clear cache after updating admin settings
+export async function updateAdminSettings(newSettings: any) {
+  await requireAdminAuth();
+  const { userId } = await auth();
+
+  await prisma.user.update({
+    where: { employClerkUserId: userId || "" },
+    data: { adminNotificationPreferences: JSON.stringify(newSettings) },
+  });
+
+  await redis.del(ADMIN_SETTINGS_CACHE_KEY);
 }
+
+const ANALYTICS_BOTH_CACHE_KEY = "admin:analytics:both";
+const ANALYTICS_BOTH_CACHE_EXPIRATION = 600; // 10 minutes
 
 export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
   await requireAdminAuth();
 
-  // Use Prisma transaction inside a function
-  const result = await prisma.$transaction(async (prisma) => {
-    const userStats = await prisma.user.groupBy({
-      by: ["verification_status"],
-      _count: { verification_status: true },
-      orderBy: { verification_status: "asc" },
-    });
+  // ✅ Check Redis cache first
+  const cachedData = await redis.get(ANALYTICS_BOTH_CACHE_KEY);
+  if (cachedData && typeof cachedData === "object") {
+    console.log("✅ Returning cached admin analytics (Both Websites)");
+    return cachedData as AdminAnalytics;
+  }
 
-    const activityStats = await prisma.activity.groupBy({
+  const [userStats, activityStats, payoutStats] = await prisma.$transaction([
+    prisma.user.groupBy({
+      by: ["verification_status"],
+      _count: { id: true },
+      orderBy: { verification_status: "asc" },
+    }),
+
+    prisma.activity.groupBy({
       by: ["status", "type"],
-      _count: { status: true },
+      _count: { id: true },
       _sum: { points: true },
       orderBy: { status: "asc" },
-    });
+    }),
 
-    const payoutStats = await prisma.payout.groupBy({
+    prisma.payout.groupBy({
       by: ["status"],
-      _count: { status: true },
+      _count: { id: true },
       _sum: { amount: true },
       orderBy: { status: "asc" },
-    });
+    }),
+  ]);
 
-    return { userStats, activityStats, payoutStats };
-  });
-
-  return {
-    users: result.userStats.map((user) => ({
+  const analyticsData = {
+    users: userStats.map((user) => ({
       verificationStatus: user.verification_status ?? "unknown",
-      _count: user._count.verification_status ?? 0,
-      createdAt: new Date(), // Placeholder as `groupBy` does not return `createdAt`
+      _count: (user._count as { id?: number })?.id ?? 0,
+      createdAt: new Date(),
     })),
 
-    activities: result.activityStats.map((activity) => ({
+    activities: activityStats.map((activity) => ({
       type: activity.type ?? "unknown",
       status: activity.status ?? "unknown",
-      _count: activity._count.status ?? 0,
-      _sum: { points: activity._sum.points ?? 0 },
-      metadata: {}, // Ensuring metadata exists
+      _count: (activity._count as { id?: number })?.id ?? 0,
+      _sum: { points: activity._sum?.points ?? 0 },
+      metadata: {},
     })),
 
-    payouts: result.payoutStats.map((payout) => ({
+    payouts: payoutStats.map((payout) => ({
       status: payout.status ?? "unknown",
-      _count: payout._count.status ?? 0,
-      _sum: { amount: payout._sum.amount ?? 0 },
-      created_at: new Date(), // Placeholder, as `groupBy` does not return `createdAt`
+      _count: (payout._count as { id?: number })?.id ?? 0,
+      _sum: { amount: payout._sum?.amount ?? 0 },
+      created_at: new Date(),
     })),
   };
+
+  // ✅ Store result in Redis with expiration
+  await redis.set(ANALYTICS_BOTH_CACHE_KEY, analyticsData, {
+    ex: ANALYTICS_BOTH_CACHE_EXPIRATION,
+  });
+
+  return analyticsData;
 }
 
 export async function getAdminAnalytics(): Promise<AdminAnalytics> {
+  // ✅ Check cache first to reduce load
+  if (adminAnalyticsCache.has("analytics")) {
+    console.log("✅ Returning cached admin analytics");
+    return adminAnalyticsCache.get("analytics");
+  }
+
   await requireAdminAuth();
 
-  const result = await prisma.$transaction(async (prisma) => {
-    const userStats = await prisma.user.groupBy({
-      by: ["verification_status"],
-      _count: { verification_status: true },
-      where: { employClerkUserId: { not: null } }, // ✅ Only employed users
-      orderBy: { verification_status: "asc" },
-    });
+  // ✅ Fetch data safely using individual Prisma queries instead of `groupBy`
+  const [userStats, activityStats, payoutStats] = await prisma.$transaction([
+    prisma.user.findMany({
+      where: { employClerkUserId: { not: null } },
+      select: { verification_status: true },
+    }),
 
-    const activityStats = await prisma.activity.groupBy({
-      by: ["status", "type"],
-      _count: { status: true },
-      _sum: { points: true },
-      where: { user: { employClerkUserId: { not: null } } }, // ✅ Only employed users
-      orderBy: { status: "asc" },
-    });
+    prisma.activity.findMany({
+      where: { user: { employClerkUserId: { not: null } } },
+      select: { status: true, type: true, points: true },
+    }),
 
-    const payoutStats = await prisma.payout.groupBy({
-      by: ["status"],
-      _count: { status: true },
-      _sum: { amount: true },
-      where: { user: { employClerkUserId: { not: null } } }, // ✅ Only employed users
-      orderBy: { status: "asc" },
-    });
+    prisma.payout.findMany({
+      where: { user: { employClerkUserId: { not: null } } },
+      select: { status: true, amount: true },
+    }),
+  ]);
 
-    return { userStats, activityStats, payoutStats };
-  });
+  // ✅ Process user verification stats manually
+  const userVerificationCounts = userStats.reduce<Record<string, number>>(
+    (acc, user) => {
+      const status = user.verification_status || "unknown";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    },
+    {}
+  );
 
-  return {
-    users: result.userStats.map((user) => ({
-      verificationStatus: user.verification_status ?? "unknown",
-      _count: user._count.verification_status ?? 0,
+  // ✅ Process activity stats manually
+  const activityData = activityStats.reduce<
+    Record<string, { count: number; points: number }>
+  >((acc, activity) => {
+    const key = `${activity.status}_${activity.type}`;
+    if (!acc[key]) {
+      acc[key] = { count: 0, points: 0 };
+    }
+    acc[key].count += 1;
+    acc[key].points += activity.points ?? 0;
+    return acc;
+  }, {});
+
+  // ✅ Process payout stats manually
+  const payoutData = payoutStats.reduce<
+    Record<string, { count: number; amount: number }>
+  >((acc, payout) => {
+    const status = payout.status || "unknown";
+    if (!acc[status]) {
+      acc[status] = { count: 0, amount: 0 };
+    }
+    acc[status].count += 1;
+    acc[status].amount += payout.amount ?? 0;
+    return acc;
+  }, {});
+
+  // ✅ Format results safely
+  const analyticsData = {
+    users: Object.entries(userVerificationCounts).map(([status, count]) => ({
+      verificationStatus: status,
+      _count: count,
       createdAt: new Date(), // Placeholder as `groupBy` does not return `createdAt`
     })),
-    activities: result.activityStats.map((activity) => ({
-      type: activity.type ?? "unknown",
-      status: activity.status ?? "unknown",
-      _count: activity._count.status ?? 0,
-      _sum: { points: activity._sum.points ?? 0 },
-      metadata: {}, // Ensuring metadata exists
-    })),
-    payouts: result.payoutStats.map((payout) => ({
-      status: payout.status ?? "unknown",
-      _count: payout._count.status ?? 0,
-      _sum: { amount: payout._sum.amount ?? 0 },
-      created_at: new Date(), // Placeholder, as `groupBy` does not return `createdAt`
+
+    activities: Object.entries(activityData).map(([key, data]) => {
+      const [status, type] = key.split("_");
+      return {
+        type,
+        status,
+        _count: data.count,
+        _sum: { points: data.points },
+        metadata: {},
+      };
+    }),
+
+    payouts: Object.entries(payoutData).map(([status, data]) => ({
+      status,
+      _count: data.count,
+      _sum: { amount: data.amount },
+      created_at: new Date(), // Placeholder, since `groupBy` doesn't return `createdAt`
     })),
   };
+
+  // ✅ Cache the result for 10 minutes
+  adminAnalyticsCache.set("analytics", analyticsData);
+  setTimeout(() => adminAnalyticsCache.delete("analytics"), 10 * 60 * 1000);
+
+  return analyticsData;
 }
 
 export async function getPayoutRequests() {
-  const { userId } = await auth();
   await requireAdminAuth();
 
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
-
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
-  }
-
-  // Fetch payout requests with user details
+  // ✅ Fetch payout requests efficiently
   const payouts = await prisma.payout.findMany({
-    where: {
-      status: {
-        in: ["pending", "processing"],
-      },
-    },
+    where: { status: { in: ["pending", "on_the_way"] } },
     include: {
       user: {
         select: {
@@ -536,7 +561,7 @@ export async function getPayoutRequests() {
               bankName: true,
               accountNumber: true,
               accountHolderName: true,
-              routingNumber: true,
+              bsb: true,
             },
           },
         },
@@ -545,15 +570,15 @@ export async function getPayoutRequests() {
     orderBy: { createdAt: "desc" },
   });
 
-  // Ensure safe data formatting
+  // ✅ Ensure safe data formatting
   return payouts.map((payout) => ({
     ...payout,
-    status: payout.status || "pending", // Ensure status is always valid
-    createdAt: payout.createdAt || new Date(), // Ensure createdAt is always valid
+    status: payout.status || "pending",
+    createdAt: payout.createdAt || new Date(),
     user: {
       email: payout.user?.email || "No email",
       full_name: payout.user?.full_name || "Anonymous",
-      bankAccounts: payout.user?.bankAccounts || [], // Ensure it's always an array
+      bankAccounts: payout.user?.bankAccounts || [],
     },
   }));
 }
@@ -563,16 +588,7 @@ export async function processPayoutRequest(
   action: "process" | "complete" | "reject",
   notes?: string
 ) {
-  const { userId } = await auth();
   await requireAdminAuth();
-
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
-
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
-  }
 
   const payout = await prisma.payout.findUnique({
     where: { id: payoutId },
@@ -589,127 +605,269 @@ export async function processPayoutRequest(
       : "rejected";
 
   await prisma.$transaction([
-    // Update payout status
     prisma.payout.update({
       where: { id: payoutId },
       data: {
         status,
         notes,
         processedAt: new Date(),
-        processedBy: userId,
       },
     }),
-
-    // Create notification for user
     prisma.notification.create({
       data: {
         userId: payout.userId,
         title: `Payout ${status === "on_the_way" ? "Processing" : status}`,
         message:
           status === "on_the_way"
-            ? "Your payout is being processed and will be sent shortly"
+            ? "Your payout is being processed."
             : status === "completed"
-            ? `Your payout of $${payout.amount} has been sent`
+            ? `Your payout of $${payout.amount} has been sent.`
             : `Your payout was rejected: ${notes || "No reason provided"}`,
         type: status === "rejected" ? "error" : "success",
+        userRole: "admin",
       },
     }),
-
-    // If rejected, refund points to user
-    ...(status === "rejected"
-      ? [
-          prisma.user.update({
-            where: { id: payout.userId },
-            data: {
-              points_balance: {
-                increment: payout.amount * 100, // Convert dollars back to points
-              },
-            },
-          }),
-        ]
-      : []),
   ]);
 
-  // Revalidate relevant pages
+  // ✅ Clear Redis cache to force fetching new data next time
+  await redis.del(`payout:stats:${payout.userId}`);
+  await redis.del(`payout:history:${payout.userId}`);
+
   revalidatePath("/admin/payouts");
-  revalidatePath("/dashboard/payouts");
 
   return { success: true };
 }
 
-export async function createActivity(data: {
-  title: string;
-  type: string;
-  points: number;
-  description?: string;
-  metadata?: any;
-}) {
-  const { userId } = await auth();
-  await requireAdminAuth();
+export async function updateVerificationRequest(
+  id: string,
+  status: string,
+  verificationUrl: string
+) {
+  console.log(`🔄 Updating verification request... ID: ${id}, Status: ${status}`);
 
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
+  try {
+    // ✅ Update the verification request in the database
+    const updatedRequest = await prisma.verificationRequest.update({
+      where: { id },
+      data: { status, verificationUrl },
+    });
 
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
+    console.log(`✅ Verification request updated successfully:`, updatedRequest);
+
+    // ✅ Fetch the updated request along with user email and activity instructions
+    const request = await prisma.verificationRequest.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            email: true,
+            employClerkUserId: true,
+          },
+        },
+        activity: {
+          select: {
+            title: true,
+            instructions: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      console.warn(`⚠️ Verification request not found after update (ID: ${id})`);
+      return { success: false, message: "Verification request not found" };
+    }
+
+    if (!request.user?.email) {
+      console.warn(`⚠️ User email not found for verification request (ID: ${id})`);
+      return { success: false, message: "User email not found" };
+    }
+
+    // ✅ Extract details for email
+    const { email } = request.user;
+    const title = request.activity?.title ?? "Your Task";
+
+    // ✅ Ensure `instructions` is properly parsed
+    let instructionsArray: { step: number; text: string }[] = [];
+
+    try {
+      if (request.activity?.instructions) {
+        // If instructions are stored as a string (JSON string)
+        if (typeof request.activity.instructions === "string") {
+          const parsed = JSON.parse(request.activity.instructions);
+
+          // Ensure it is an array and only contains valid { step: number; text: string }
+          if (Array.isArray(parsed)) {
+            instructionsArray = parsed.filter(
+              (i): i is { step: number; text: string } =>
+                typeof i === "object" && i !== null && "step" in i && "text" in i
+            );
+          }
+        } 
+        // If instructions are already an array of { step: number, text: string }
+        else if (Array.isArray(request.activity.instructions)) {
+          instructionsArray = request.activity.instructions.filter(
+            (i): i is { step: number; text: string } =>
+              typeof i === "object" && i !== null && "step" in i && "text" in i
+          );
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error parsing instructions JSON:", error);
+    }
+
+    // ✅ Ensure instructionsArray is an array before mapping
+    const instructions = instructionsArray.length
+      ? instructionsArray
+          .map((i) => `<p><strong>Step ${i.step}:</strong> ${i.text}</p>`)
+          .join("")
+      : "No specific instructions provided.";
+
+    console.log(`📩 Sending verification email to: ${email}`);
+
+    // ✅ Generate the email content including the instructions
+    const emailHtml = verificationTaskEmailTemplate(verificationUrl, title, instructions);
+
+    // ✅ Send the email notification
+    await sendNotificationEmail(email, `Your Verification Task: ${title}`, emailHtml);
+
+    console.log(`✅ Email sent successfully to ${email}`);
+
+    // ✅ Clear the cache
+    const cacheKey = `user:activities:${request.user.employClerkUserId}`;
+    redis.del(cacheKey);
+
+    // ✅ Revalidate the admin page
+    revalidatePath("admin/verification-requests");
+
+    return {
+      success: true,
+      message: "Verification request updated and email sent",
+    };
+  } catch (error: unknown) {
+    console.error(`❌ Error updating verification request (ID: ${id}):`, error);
+
+    let errorMessage = "An unknown error occurred";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    return {
+      success: false,
+      message: "Internal server error",
+      error: errorMessage,
+    };
   }
+}
 
-  const activity = await prisma.activity.create({
-    data: {
-      ...data,
-      userId: user.id,
-      status: "active",
+export async function getVerificationRequests() {
+  //debugger;
+  const requests = await prisma.verificationRequest.findMany({
+    where: {
+      status: { in: ["waiting", "ready"] }, // ✅ Fetch both statuses
+    },
+    include: {
+      user: {
+        // Ensure that the user relation exists
+        select: {
+          email: true,
+        },
+      },
+      activity: {
+        select: {
+          title: true
+        }
+      }
     },
   });
 
-  revalidatePath("/admin/activities");
-  revalidatePath("/dashboard/activities");
+  const { users } = await clerkClient();
 
-  return activity;
+  return requests.map((req) => ({
+    id: req.id,
+    userEmail: req.user?.email || "N/A", // ✅ Ensure email is properly accessed
+    status: req.status!,
+    verificationUrl: req.verificationUrl,
+    activityTitle: req.activity?.title || "N/A"
+  }));
 }
 
-export async function updateActivityStatus(activityId: string, status: string) {
-  const { userId } = await auth();
-  await requireAdminAuth();
-
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
-
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
+export async function markVerificationCompleted(requestId: string) {
+  if (!requestId) {
+    throw new Error("Missing request ID");
   }
 
-  const activity = await prisma.activity.update({
-    where: { id: activityId },
-    data: { status },
-  });
+  try {
+    // ✅ Get the verification request along with related user & activity
+    const request = await prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        user: true,
+        activity: true,
+      },
+    });
 
-  revalidatePath("/admin/activities");
-  revalidatePath("/dashboard/activities");
+    if (!request || !request.user || !request.activity) {
+      throw new Error("Request, user, or activity not found.");
+    }
 
-  return activity;
-}
+    const { user, activity } = request;
 
-export async function deleteActivity(activityId: string) {
-  const { userId } = await auth();
-  await requireAdminAuth();
+    const userRole = (await isAdmin()) ? "admin" : "user";
 
-  const { users } = await clerkClient();
-  const user = await users.getUser(userId || "");
-  const isAdmin = user.publicMetadata.role === "admin";
+    // ✅ Perform all DB operations in a single transaction
+    await prisma.$transaction([
+      // 1. Update the verification request status to "completed"
+      prisma.verificationRequest.update({
+        where: { id: requestId },
+        data: { status: "completed" },
+      }),
 
-  if (!isAdmin) {
-    throw new Error("Unauthorized");
+      // 2. Create activity completion record
+      prisma.activity_completions.create({
+        data: {
+          user_id: user.id,
+          activity_id: activity.id,
+          completed_at: new Date(),
+        },
+      }),
+
+      // 3. Update user points
+      prisma.user.update({
+        where: { id: user.id },
+        data: {
+          points_balance: { increment: activity.points },
+        },
+      }),
+
+      // 4. Create an activity log entry
+      prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          activityId: activity.id,
+          action: "completed",
+          metadata: {
+            points: activity.points,
+            type: activity.type,
+          },
+        },
+      }),
+
+      // 5. Notify the user
+      prisma.notification.create({
+        data: {
+          userId: user.id,
+          title: "Activity Completed",
+          message: `🎉 You earned ${activity.points} points for completing "${activity.title}"!`,
+          type: "success",
+          userRole,
+        },
+      }),
+    ]);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error marking verification as completed:", error);
+    throw new Error("Failed to complete verification task");
   }
-
-  await prisma.activity.delete({
-    where: { id: activityId },
-  });
-
-  revalidatePath("/admin/activities");
-  revalidatePath("/dashboard/activities");
-
-  return { success: true };
 }

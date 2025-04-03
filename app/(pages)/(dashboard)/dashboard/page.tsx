@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"; 
+
 import { Suspense } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

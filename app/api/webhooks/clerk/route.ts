@@ -3,15 +3,16 @@ import { headers } from "next/headers";
 import { handleEvent } from "@/app/actions/clerk";
 import { getClerkWebhookSecret } from "@/lib/clerk";
 import { WebhookEvent } from "@clerk/nextjs/server";
+import { NextResponse, NextRequest } from "next/server";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   console.log("📩 Webhook Triggered: Receiving Request...");
 
   try {
     const WEBHOOK_SECRET = getClerkWebhookSecret();
     if (!WEBHOOK_SECRET) {
       console.error("❌ Webhook Secret Not Found");
-      return new Response("Error: Missing Webhook Secret", { status: 500 });
+      return NextResponse.json({ error: "Missing Webhook Secret" }, { status: 500 });
     }
     console.log("🔹 Clerk Webhook Secret Retrieved");
 
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
     if (!svix_id || !svix_timestamp || !svix_signature) {
       console.error("❌ Missing Svix Headers");
-      return new Response("Error: Missing Svix Headers", { status: 400 });
+      return NextResponse.json({ error: "Missing Svix Headers" }, { status: 400 });
     }
 
     // Extract raw body
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       }) as WebhookEvent;
     } catch (err) {
       console.error("❌ Webhook Verification Failed:", err);
-      return new Response("Error: Invalid Webhook Signature", { status: 400 });
+      return NextResponse.json({ error: "Invalid Webhook Signature" }, { status: 400 });
     }
 
     console.log("✅ Webhook Signature Verified");
@@ -55,13 +56,13 @@ export async function POST(req: Request) {
       console.log(`🚀 Processing Webhook Event: ${evt.type}`);
       await handleEvent(evt);
       console.log("✅ Webhook Successfully Processed");
-      return new Response("Success", { status: 200 });
+      return NextResponse.json({ success: true });
     } catch (error) {
       console.error("❌ Error Processing Webhook:", error);
-      return new Response("Internal Server Error", { status: 500 });
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
   } catch (error) {
     console.error("❌ Unexpected Error in Webhook:", error);
-    return new Response("Internal Server Error", { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

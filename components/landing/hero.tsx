@@ -48,7 +48,7 @@ export default function Hero() {
               to="demo"
               smooth={true}
               duration={1000} // 1000ms (1 second) scroll duration
-              offset={-10} // Adjusts positioning if needed
+              offset={-60} // Adjusts positioning if needed
               className="flex items-center cursor-pointer"
             >
               Watch Demo

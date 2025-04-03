@@ -26,35 +26,34 @@ interface Reward {
 }
 
 const rewards: Reward[] = [
-  {
+  /*{
     title: "Amazon Gift Card",
-    points: 500,
+    points: 15000,
     description: "Get a $5 Amazon Gift Card",
   },
   {
     title: "PayPal Cash",
-    points: 1000,
+    points: 15000,
     description: "Get $10 PayPal Cash",
   },
   {
     title: "Premium Membership",
     points: 2000,
     description: "1 Month Premium Membership",
-  },
+  },*/
 ];
 
 export default function RewardsPage() {
- const { userId } = useAuth();
-  
+  const { userId } = useAuth();
+
   if (!userId) {
     redirect("/sign-in");
-  }  
+  }
   const { toast } = useToast();
   const [selectedReward, setSelectedReward] = useState(null);
   const [isRedeeming, setIsRedeeming] = useState(false);
-
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const handleRedeem = async (reward: Reward) => {
-
     const user = await getDbUser(userId);
     if (!user?.email) return;
 
@@ -67,6 +66,7 @@ export default function RewardsPage() {
       );
 
       if (result.success) {
+        setIsModalOpen(false);
         toast({
           title: "Success",
           description: "Reward redeemed successfully!",
@@ -93,11 +93,13 @@ export default function RewardsPage() {
   return (
     <div className="flex-1 space-y-4">
       <h2 className="text-3xl font-bold tracking-tight">Rewards</h2>
-      
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Points</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Available Points
+            </CardTitle>
             <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -110,20 +112,22 @@ export default function RewardsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lifetime Points</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Lifetime Points
+            </CardTitle>
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">5,430</div>
-            <p className="text-xs text-muted-foreground">
-              Total points earned
-            </p>
+            <p className="text-xs text-muted-foreground">Total points earned</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rewards Claimed</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Rewards Claimed
+            </CardTitle>
             <Gift className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -137,54 +141,54 @@ export default function RewardsPage() {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {rewards.map((reward, index) => (
-          <Card key={index}>
-            <CardHeader>
-              <CardTitle className="text-lg">{reward.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                {reward.description}
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Trophy className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span className="font-bold">{reward.points} points</span>
+          <div key={index}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">{reward.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {reward.description}
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Trophy className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span className="font-bold">{reward.points} points</span>
+                  </div>
+                  <Button onClick={(e) => setIsModalOpen(true)}>Redeem</Button>
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
+              </CardContent>
+            </Card>
+
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Redemption</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to redeem {reward.title} for{" "}
+                    {reward.points} points?
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="mt-4">
                   <Button
-                        onClick={() => handleRedeem(reward)}
-                        disabled={isRedeeming}
-                      >
-                        {isRedeeming ? "Redeeming..." : "Confirm"}
-                      </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Confirm Redemption</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to redeem {reward.title} for {reward.points} points?
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="mt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedReward(null)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => handleRedeem(reward)}
-                        disabled={isRedeeming}
-                      >
-                        {isRedeeming ? "Redeeming..." : "Confirm"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardContent>
-          </Card>
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedReward(null);
+                      setIsModalOpen(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => handleRedeem(reward)}
+                    disabled={isRedeeming}
+                  >
+                    {isRedeeming ? "Redeeming..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         ))}
       </div>
     </div>

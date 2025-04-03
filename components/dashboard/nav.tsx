@@ -10,7 +10,8 @@ import {
   ClipboardList,
   DollarSign,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Brain
 } from "lucide-react";
 
 const items = [
@@ -34,16 +35,16 @@ const items = [
     href: "/dashboard/payouts",
     icon: DollarSign,
   },
-  {
+  /*{
     title: "Verification",
     href: "/dashboard/verification",
     icon: ShieldCheck,
-  },
+  },*/
   {
     title: "Settings",
     href: "/dashboard/settings",
     icon: Settings,
-  },
+  }
 ];
 
 export function DashboardNav({

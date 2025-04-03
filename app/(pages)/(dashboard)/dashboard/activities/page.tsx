@@ -1,108 +1,198 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Play, FileText, CheckCircle } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
-interface Activity {
+import { listenForTableChanges } from "@/app/actions/supabase/supabase-realtime";
+import { toast } from "@/hooks/use-toast";
+import { VerificationConfirmationDialog } from "@/components/ui/verification-request-modal";
+import { getInternalUserIdUtil } from "@/lib/utils";
+import { ActivityStats } from "@/components/dashboard/activities/ActivityStats";
+import { ActivitySearchFilter } from "@/components/dashboard/activities/ActivitySearchFilter";
+import { ActivityTabs } from "@/components/dashboard/activities/ActivityTabs";
+
+interface VerificationRequest {
+  id: string;
+  userId: string;
+  status: "waiting" | "ready" | "completed";
+  verificationUrl?: string | null;
+}
+
+export interface Activity {
   id: string;
   title: string;
   type: string;
   points: number;
   status: string;
   completedAt: string | null;
+  description: string;
+  verificationRequests?: VerificationRequest[];
+  instructions?: { step: number; text: string }[];
+}
+
+interface Props {
+  userId: string;
+  activeActivities: Activity[];
+  completedActivities: Activity[];
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  handleActivityClick: (activity: Activity) => void;
+  isLoading: boolean;
+  searchQuery: string;
+  activeFilter: string | null;
 }
 
 export default function ActivitiesPage() {
   const router = useRouter();
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const { userId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeActivities, setActiveActivities] = useState<Activity[]>([]);
+  const [completedActivities, setCompletedActivities] = useState<Activity[]>(
+    []
+  );
+  const [selectedTask, setSelectedTask] = useState<Activity | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("active");
+  const [activeNavigationId, setActiveNavigationId] = useState<string | null>(
+    null
+  );
+  const [isPending, startTransition] = useTransition();
 
+  // Fetch Initial Activities from API
   useEffect(() => {
-    const fetchActivities = async () => {
-      try {
-        const response = await fetch('/api/activities');
-        if (!response.ok) throw new Error('Failed to fetch activities');
-        const data = await response.json();
-        setActivities(data);
-      } catch (error) {
-        console.error('Error fetching activities:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchActivities();
   }, []);
 
-  const handleActivityClick = (activity: Activity) => {
-    if (activity.status === 'completed') return;
-    
-    if (activity.type === "video") {
-      router.push(`/dashboard/activities/video/${activity.id}`);
-    } else if (activity.type === "survey") {
-      router.push(`/dashboard/activities/survey/${activity.id}`);
+  const fetchActivities = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/activities/user");
+      if (!res.ok) throw new Error("Failed to fetch activities");
+      const data = await res.json();
+
+      setActiveActivities(data.activeActivities || []);
+      setCompletedActivities(data.completedActivities || []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setTimeout(() => setIsLoading(false), 500); // Smooth transition delay
     }
   };
 
-  if (isLoading) {
-    return <div className="space-y-4">
-      {[1, 2, 3].map((i) => (
-        <Card key={i} className="animate-pulse">
-          <CardContent className="h-48" />
-        </Card>
-      ))}
-    </div>;
-  }
+  // Refresh Handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchActivities();
+    setIsRefreshing(false);
+  };
+
+  // Handle Activity Click with Optimistic UI update
+  const handleActivityClick = (activity: Activity) => {
+    if (activity.type === "verification") {
+      setSelectedTask(activity);
+      setIsDialogOpen(true);
+    } else {
+      // Immediately mark the clicked card as loading
+      setActiveNavigationId(activity.id);
+      startTransition(() => {
+        // Optionally prefetch the route before navigation
+        router.push(`/dashboard/activities/${activity.type}/${activity.id}`);
+      });
+    }
+  };
+
+  const handleRequestVerification = async () => {
+    if (!selectedTask) return;
+
+    try {
+      const response = await fetch("/api/users/verification-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityId: selectedTask.id }),
+      });
+
+      if (response.status === 409) {
+        // 🛑 Duplicate request
+        toast({
+          title: "Request Already Exists",
+          description:
+            "You’ve already submitted a verification request for this task.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to request verification");
+      }
+
+      // ✅ Success
+      toast({
+        title: "Request Sent",
+        description: "Admin will review and send you the verification link.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not send verification request.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDialogOpen(false);
+    }
+  };
+
+  // Filter activities based on search query and active filter
+  const filteredActiveActivities = activeActivities.filter(
+    (activity) =>
+      (!activeFilter || activity.type === activeFilter) &&
+      (!searchQuery ||
+        activity.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredCompletedActivities = completedActivities.filter(
+    (activity) =>
+      (!activeFilter || activity.type === activeFilter) &&
+      (!searchQuery ||
+        activity.title.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
-    <div className="flex-1 space-y-4">
-      <h2 className="text-3xl font-bold tracking-tight">Activities</h2>
-
-      <div className="grid gap-4">
-        {activities.map((activity) => (
-          <Card key={activity.id}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle className="text-lg">{activity.title}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {activity.type} • {activity.points} points
-                </p>
-              </div>
-              {activity.type === "video" ? (
-                <Play className="h-5 w-5 text-muted-foreground" />
-              ) : activity.type === "survey" ? (
-                <FileText className="h-5 w-5 text-muted-foreground" />
-              ) : (
-                <CheckCircle className="h-5 w-5 text-muted-foreground" />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <Progress 
-                  value={activity.status === 'completed' ? 100 : 0} 
-                  className="h-2" 
-                />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    {activity.status === 'completed' ? '100%' : '0%'} Complete
-                  </span>
-                  <Button
-                    variant={activity.status === "completed" ? "secondary" : "default"}
-                    disabled={activity.status === "completed"}
-                    onClick={() => handleActivityClick(activity)}
-                  >
-                    {activity.status === "completed" ? "Completed" : "Start"}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="flex-1 space-y-6 container mx-auto px-4 sm:px-6 max-w-7xl">
+      <ActivityStats
+        activeActivities={activeActivities}
+        completedActivities={completedActivities}
+      />
+      <ActivitySearchFilter
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        activeFilter={activeFilter}
+        setActiveFilter={setActiveFilter}
+        handleRefresh={handleRefresh}
+      />
+      <ActivityTabs
+        userId={userId!}
+        activeActivities={filteredActiveActivities}
+        completedActivities={filteredCompletedActivities}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        handleActivityClick={handleActivityClick}
+        isLoading={isLoading}
+        searchQuery={searchQuery}
+        activeFilter={activeFilter}
+        activeNavigationId={activeNavigationId!}
+      />
+      <VerificationConfirmationDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onConfirm={handleRequestVerification}
+      />
     </div>
   );
 }

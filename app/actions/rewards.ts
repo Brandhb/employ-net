@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { isAdmin } from "./isAdmin";
 
 interface RewardRedemptionResult {
   success: boolean;
@@ -24,9 +25,9 @@ export async function redeemReward(
     }
 
     if (user.points_balance && user.points_balance < rewardPoints) {
-      return { 
-        success: false, 
-        message: "Insufficient points balance" 
+      return {
+        success: false,
+        message: "Insufficient points balance",
       };
     }
 
@@ -36,37 +37,38 @@ export async function redeemReward(
         where: { id: user.id },
         data: {
           points_balance: {
-            decrement: rewardPoints
-          }
-        }
+            decrement: rewardPoints,
+          },
+        },
       }),
       prisma.reward.create({
         data: {
           user_id: user.id,
           points: rewardPoints,
-          description: `Redeemed ${rewardTitle}`
-        }
+          description: `Redeemed ${rewardTitle}`,
+        },
       }),
       prisma.notification.create({
         data: {
           userId: user.id,
           title: "Reward Redeemed",
           message: `You have successfully redeemed ${rewardTitle} for ${rewardPoints} points`,
-          type: "success"
-        }
-      })
+          type: "success",
+          userRole: (await isAdmin()) ? "admin" : "user",
+        },
+      }),
     ]);
 
     return {
       success: true,
       message: "Reward redeemed successfully",
-      newBalance: updatedUser.points_balance || 0
+      newBalance: updatedUser.points_balance || 0,
     };
   } catch (error) {
     console.error("Error redeeming reward:", error);
     return {
       success: false,
-      message: "Failed to redeem reward. Please try again."
+      message: "Failed to redeem reward. Please try again.",
     };
   }
 }

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@clerk/nextjs";
 import { Notification } from "@prisma/client";
+import { supabase } from "@/lib/supabase";
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -25,133 +26,106 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [internalUserId, setInternalUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const { userId: employClerkUserId } = useAuth();
 
   useEffect(() => {
-    const fetchInternalUserId = async () => {
-      if (!employClerkUserId) return;
+    if (!employClerkUserId) return;
 
-      try {
-        const response = await fetch(`/api/users/internal-id`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ employClerkUserId }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setInternalUserId(data.internalUserId);
-        } else {
-          console.error(
-            "Failed to fetch internalUserId:",
-            await response.text()
-          );
-        }
-      } catch (error) {
-        console.error("Error fetching internal user ID:", error);
-      }
-    };
-
-    fetchInternalUserId();
-  }, [employClerkUserId]);
-
-  useEffect(() => {
-    if (!internalUserId) return;
-
-    let eventSource: EventSource;
-
-    const setupEventSource = () => {
-      eventSource = new EventSource("/api/notifications/stream");
-
-      eventSource.onmessage = (event) => {
-        const newNotification = JSON.parse(event.data) as Notification;
-        setNotifications((prev) => [newNotification, ...prev]);
-
-        toast({
-          title: newNotification.title,
-          description: newNotification.message,
-          variant:
-            newNotification.type === "error" ? "destructive" : "default",
-        });
-      };
-
-      eventSource.onerror = () => {
-        eventSource.close();
-        setTimeout(setupEventSource, 5000); // Retry after 5 seconds
-      };
-    };
-
+    // ✅ Fetch notifications from API
     const fetchNotifications = async () => {
       try {
-        const response = await fetch(`/api/notifications`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: internalUserId }),
-        });
-
-        if (response.ok) {
-          const userNotifications = await response.json();
-          setNotifications(userNotifications);
-        } else {
-          console.error(
-            "Failed to fetch notifications:",
-            await response.text()
-          );
-        }
+        const response = await fetch(`/api/notifications/stream`);
+        if (!response.ok) throw new Error("Failed to fetch notifications");
+        const data = await response.json();
+        setNotifications(data.notifications);
       } catch (error) {
-        console.error("Error fetching notifications:", error);
+        console.error("❌ Error fetching notifications:", error);
       }
     };
 
     fetchNotifications();
-    setupEventSource();
+
+    console.log("🔔 Subscribing to real-time notifications...");
+
+    // ✅ Supabase Realtime Listener (No filter, filtering inside payload)
+    const channel = supabase
+      .channel("realtime_notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+        },
+        (payload) => {
+          console.log("📩 New notification received:", payload.new);
+
+          // ✅ Filter updates for only the current user
+          if (payload.new.employClerkUserId === employClerkUserId) {
+            console.log("✅ Notification belongs to current user:", payload.new.id);
+            setNotifications((prev) => [
+              {
+                id: payload.new.id,
+                userId: payload.new.userId,
+                title: payload.new.title,
+                message: payload.new.message,
+                type: payload.new.type,
+                read: payload.new.read ?? false, // Ensure a default value
+                createdAt: payload.new.createdAt ? new Date(payload.new.createdAt) : null, // Convert to Date
+                updated_at: payload.new.updatedAt,
+                userRole: payload.new.userRole,
+              },
+              ...prev,
+            ]);
+
+            toast({
+              title: payload.new.title,
+              description: payload.new.message,
+              variant: payload.new.type === "error" ? "destructive" : "default",
+            });
+          }
+        }
+      )
+      .subscribe();
 
     return () => {
-      if (eventSource) {
-        eventSource.close();
-      }
+      console.log("🔴 Unsubscribing from real-time notifications...");
+      supabase.removeChannel(channel);
     };
-  }, [internalUserId, toast]);
+  }, [employClerkUserId, toast]);
 
   const markAsRead = async (id: string) => {
-    if (!internalUserId) return;
-
     try {
       await fetch(`/api/notifications/mark-as-read`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, userId: internalUserId }),
+        body: JSON.stringify({ id }),
       });
 
       setNotifications((prev) =>
         prev.map((notification) =>
-          notification.id === id
-            ? { ...notification, read: true }
-            : notification
+          notification.id === id ? { ...notification, read: true } : notification
         )
       );
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error("❌ Error marking notification as read:", error);
     }
   };
 
   const markAllAsRead = async () => {
-    if (!internalUserId) return;
-
     try {
       await fetch(`/api/notifications/mark-all-as-read`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: internalUserId }),
+        body: JSON.stringify({}),
       });
 
       setNotifications((prev) =>
         prev.map((notification) => ({ ...notification, read: true }))
       );
     } catch (error) {
-      console.error("Error marking all notifications as read:", error);
+      console.error("❌ Error marking all notifications as read:", error);
     }
   };
 
@@ -159,12 +133,7 @@ export function NotificationProvider({
 
   return (
     <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        markAsRead,
-        markAllAsRead,
-      }}
+      value={{ notifications, unreadCount, markAsRead, markAllAsRead }}
     >
       {children}
     </NotificationContext.Provider>

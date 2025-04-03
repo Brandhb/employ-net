@@ -45,20 +45,31 @@ export default function SignUpPage() {
               appearance={{
                 elements: {
                   rootBox:
-                    "w-full max-w-lg min-w-lg flex flex-col gap-4 items-center justify-center",
-                  card: "bg-background dark:bg-gray-900 shadow-md rounded-xl p-6 space-y-4 border border-gray-200 dark:border-gray-700",
+                    "w-full flex flex-col gap-4 items-center justify-center",
+
+                  // Sign-in card - Subtle glow effect & contrast
+                  card: "bg-white/10 dark:bg-black/40 backdrop-blur-xl shadow-xl dark:shadow-md shadow-gray-300 dark:shadow-gray-900 rounded-2xl p-6 space-y-4 border border-border transition-all duration-300",
+
                   header: "hidden",
                   footer: "hidden",
+
+                  // Google button - Softer background, better hover
                   socialButtonsBlockButton:
-                    "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md hover:scale-105 transition-transform rounded-lg h-12 flex items-center justify-center px-4",
+                    "flex items-center justify-center gap-2 bg-gray-200 dark:bg-[#2A2F3A] hover:bg-gray-300 dark:hover:bg-[#3A4150] text-gray-900 dark:text-white border border-gray-400 dark:border-gray-700 shadow-md rounded-lg h-12 px-6 font-medium transition-all duration-200",
+
+                  // Divider styling
                   dividerRow: "flex items-center justify-center my-4",
-                  dividerText: "text-gray-400 text-sm mx-2",
+                  dividerText: "text-gray-500 dark:text-gray-400 text-sm mx-2",
+
+                  // Input fields - Better contrast in dark mode
                   formFieldLabel:
                     "text-sm font-medium text-gray-700 dark:text-gray-300",
                   formFieldInput:
-                    "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-2 focus:ring-primary/50 rounded-lg h-12 px-4 w-full",
+                    "bg-gray-50 dark:bg-[#374151] text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:border-primary focus:ring-2 focus:ring-primary/50 rounded-lg h-12 px-4 w-full transition-all",
+
+                  // Continue button - Better depth and hover effect
                   formButtonPrimary:
-                    "bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg h-12 flex items-center justify-center transition-transform hover:scale-105",
+                    "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-lg h-10 flex items-center justify-center transition-transform hover:scale-105 shadow-md",
                 },
               }}
             />
