@@ -177,7 +177,7 @@ export default function PayoutsPage() {
                   <TableRow key={payout.id}>
                     <TableCell>{new Date(payout.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>${payout.amount.toFixed(2)}</TableCell>
-                    <TableCell>PayPal</TableCell>
+                    <TableCell>Bank Transfer</TableCell>
                     <TableCell>{payout.status}</TableCell>
                   </TableRow>
                 ))

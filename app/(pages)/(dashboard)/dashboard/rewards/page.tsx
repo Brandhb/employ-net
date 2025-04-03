@@ -26,7 +26,7 @@ interface Reward {
 }
 
 const rewards: Reward[] = [
-  {
+  /*{
     title: "Amazon Gift Card",
     points: 15000,
     description: "Get a $5 Amazon Gift Card",
@@ -40,7 +40,7 @@ const rewards: Reward[] = [
     title: "Premium Membership",
     points: 2000,
     description: "1 Month Premium Membership",
-  },
+  },*/
 ];
 
 export default function RewardsPage() {
