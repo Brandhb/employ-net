@@ -870,4 +870,4 @@ export async function markVerificationCompleted(requestId: string) {
     console.error("Error marking verification as completed:", error);
     throw new Error("Failed to complete verification task");
   }
-}
+}  
