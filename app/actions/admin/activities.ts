@@ -9,7 +9,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { ActivityData } from "@/types";
-import { requireAdminAuth, requireAuthUser } from "../admin";
+import { requireAdminAuth, requireAuthUser, requireAdminOrManagerAuth } from "../admin";
 import { revalidatePath } from "next/cache";
 
 const ACTIVITIES_CACHE_KEY = "activities";
@@ -92,7 +92,7 @@ export async function createActivity(
 ): Promise<CreateActivityResponse> {
   try {
     console.log(`[🚀 ${new Date().toISOString()}] Creating new activity...`);
-
+    await requireAdminOrManagerAuth();
     const userId = await requireAuthUser();
     const internalUser = await prisma.user.findUniqueOrThrow({
       where: { employClerkUserId: userId },
@@ -132,7 +132,7 @@ export async function updateActivity(
 ): Promise<CreateActivityResponse> {
   try {
     console.log(`[🔄 ${new Date().toISOString()}] Updating activity ID: ${id}`);
-
+    await requireAdminAuth();
     const userId = await requireAuthUser();
     const internalUser = await prisma.user.findUniqueOrThrow({
       where: { employClerkUserId: userId },

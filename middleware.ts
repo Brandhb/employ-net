@@ -17,6 +17,13 @@ const isActivitiesRoute = createRouteMatcher(["/dashboard/activities(.*)"]);
 const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
 const isWebhookRoute = createRouteMatcher(["/api/webhooks/clerk(.*)"]);
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
+const isAdminOnlyRoute = createRouteMatcher([
+  "/admin/payouts(.*)",
+  "/admin/settings(.*)",
+  "/admin/analytics(.*)",
+  "/admin/users(.*)",
+  "/admin/verification-requests(.*)",
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   console.log(`🔍 Request received: ${req.method} ${req.nextUrl.pathname}`);
@@ -86,21 +93,28 @@ export default clerkMiddleware(async (auth, req) => {
   // ✅ Protect admin routes
   if (isAdminRoute(req)) {
     if (!userId) return redirectToSignIn();
-
+  
     try {
-      const { users } = await clerkClient();
+      const { users } = await clerkClient(); 
       const user = await users.getUser(userId);
       const userRole = user?.publicMetadata?.role || "user";
-
-      if (userRole !== "admin") {
-        console.warn("❌ Not an admin, redirecting...");
+  
+      // ✅ Only full admins can access highly sensitive routes
+      if (isAdminOnlyRoute(req) && userRole !== "admin") {
+        console.warn(`❌ ${userId} is not authorized to access restricted admin route.`);
+        return NextResponse.redirect(new URL("/unauthorized", req.url));
+      }
+  
+      // ✅ For general /admin routes (like /admin, /admin/activities), allow semi-admin too
+      if (userRole !== "admin" && userRole !== "semi-admin") {
+        console.warn(`❌ ${userId} is not an admin or semi-admin.`);
         return NextResponse.redirect(new URL("/unauthorized", req.url));
       }
     } catch (error) {
       console.error("❌ Clerk metadata fetch error:", error);
       return redirectToSignIn();
     }
-  }
+  }  
 
   return NextResponse.next();
 });

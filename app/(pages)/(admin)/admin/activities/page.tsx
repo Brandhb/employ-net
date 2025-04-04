@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+
+import { Lock } from "lucide-react";
+import { TooltipProvider } from "@/components/ui/tooltip"; // adjust path if needed
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"; // or your tooltip lib
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,7 +34,7 @@ import { Search, MoreVertical, Plus, Video, FileText } from "lucide-react";
 import { CreateActivityForm } from "@/components/admin/create-activity-form";
 import { useToast } from "@/hooks/use-toast";
 import {
-  
+
 } from "@/app/actions/admin";
 import { Activity, ActivityData } from "@/types"; // ✅ Ensure this matches your Prisma schema
 import { EditActivityForm } from "@/components/admin/edit-activity-form";
@@ -46,6 +51,11 @@ export default function ActivitiesPage() {
 
   const { toast } = useToast();
   const router = useRouter();
+
+  const { user } = useUser();
+  const userRole = user?.publicMetadata?.role;
+  const isFullAdmin = userRole === "admin";
+
 
   // ✅ Fetch activities from the database on mount
   useEffect(() => {
@@ -66,17 +76,17 @@ export default function ActivitiesPage() {
     console.log("📌 Create Task Clicked:", newActivity); // Debugging Step 1
     try {
       const result = await createActivity(newActivity);
-  
+
       console.log("📌 API Response:", result); // Debugging Step 2
-  
+
       if (!result.success) {
         throw new Error(result.error || "Failed to create activity");
       }
-  
+
       toast({ title: "Success", description: "Activity created successfully!" });
       router.refresh();
       setActivities(await getActivities());
-  
+
       setIsModalOpen(false);
       return { success: true };
     } catch (error) {
@@ -85,7 +95,7 @@ export default function ActivitiesPage() {
       return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
     }
   };
-  
+
 
   // ✅ Handle activity status update
   const handleEditActivity = async (activity: EditActivityData) => {
@@ -110,7 +120,8 @@ export default function ActivitiesPage() {
   };
 
   return (
-    <div className="flex-1 space-y-4">
+    <TooltipProvider>
+<div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Tasks</h2>
         <div className="flex items-center space-x-2">
@@ -138,7 +149,7 @@ export default function ActivitiesPage() {
               <CreateActivityForm onSubmit={handleCreateActivity} />
             </DialogContent>
           </Dialog>
-          
+
         </div>
       </div>
 
@@ -178,11 +189,10 @@ export default function ActivitiesPage() {
                   <TableCell>{activity.points}</TableCell>
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        activity.status === "active"
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.status === "active"
                           ? "bg-green-100 text-green-800"
                           : "bg-yellow-100 text-yellow-800"
-                      }`}
+                        }`}
                     >
                       {activity.status}
                     </span>
@@ -194,27 +204,39 @@ export default function ActivitiesPage() {
                       : "N/A"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleEditActivity(activity)}
-                        >
-                          Edit Task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteActivity(activity.id)}
-                          className="text-red-600"
-                        >
-                          Delete Task
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {isFullAdmin ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditActivity(activity)}>
+                            Edit Task
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteActivity(activity.id)}
+                            className="text-red-600"
+                          >
+                            Delete Task
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="inline-flex justify-end w-full">
+                            <Lock className="h-4 w-4 text-yellow-300" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">
+                          <span className="text-xs">Restricted: Only admins can modify tasks</span>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
@@ -239,5 +261,6 @@ export default function ActivitiesPage() {
         </Dialog>
       )}
     </div>
+    </TooltipProvider>
   );
 }

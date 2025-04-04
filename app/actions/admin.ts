@@ -34,6 +34,23 @@ export async function requireAdminAuth(): Promise<string> {
   return userId;
 }
 
+// ✅ Ensure User is a Semi-Admin
+export async function requireAdminOrManagerAuth(): Promise<string> {
+  const { userId } = await auth();
+  if (!userId) throw new Error("No User");
+
+  const { users } = await clerkClient();
+  const user = await users.getUser(userId);
+  const role = user.publicMetadata.role;
+
+  if (role !== "admin" && role !== "semi-admin") {
+    throw new Error("Unauthorized to create tasks");
+  }
+
+  return userId;
+}
+
+
 // ✅ Ensure User is Authenticated
 export async function requireAuthUser(): Promise<string> {
   const { userId } = await auth();
@@ -203,7 +220,7 @@ export async function getAdminDashboardStats() {
     return adminCache.get("singleAdminDashboardStats");
   }
 
-  await requireAdminAuth();
+  await requireAdminOrManagerAuth();
 
   const [
     totalUsers,
@@ -386,7 +403,7 @@ const ANALYTICS_BOTH_CACHE_KEY = "admin:analytics:both";
 const ANALYTICS_BOTH_CACHE_EXPIRATION = 600; // 10 minutes
 
 export async function getAdminAnalyticsBothWebsites(): Promise<AdminAnalytics> {
-  await requireAdminAuth();
+  await requireAdminOrManagerAuth();
 
   // ✅ Check Redis cache first
   const cachedData = await redis.get(ANALYTICS_BOTH_CACHE_KEY);
@@ -455,7 +472,7 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
     return adminAnalyticsCache.get("analytics");
   }
 
-  await requireAdminAuth();
+  await requireAdminOrManagerAuth();
 
   // ✅ Fetch data safely using individual Prisma queries instead of `groupBy`
   const [userStats, activityStats, payoutStats] = await prisma.$transaction([
